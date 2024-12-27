@@ -1,0 +1,20 @@
+{
+  "name": "chat-thyme",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "ollama": "^0.5.11"
+  },
+  "trustedDependencies": [
+    "@biomejs/biome"
+  ]
+}
