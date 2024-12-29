@@ -19,6 +19,11 @@
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
 
+    // Some custom options
+    // (using https://www.totaltypescript.com/tsconfig-cheat-sheet as a reference)
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
