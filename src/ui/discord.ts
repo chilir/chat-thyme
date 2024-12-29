@@ -19,12 +19,12 @@ import type {
 const chatHistories = new Map<string, ChatMessage[]>();
 
 export const setupDiscordBot = (
-  discord_client: Client,
-  ollama_client: Ollama,
+  discordClient: Client,
+  ollamaClient: Ollama,
 ) => {
   // Command registration
-  discord_client.on("ready", async () => {
-    console.log(`Logged in as ${discord_client.user?.tag}!`);
+  discordClient.on("ready", async () => {
+    console.log(`Logged in as ${discordClient.user?.tag}!`);
     // Register the slash command
     try {
       const commandData = new SlashCommandBuilder()
@@ -82,7 +82,7 @@ export const setupDiscordBot = (
         );
 
       // Register command on all the guilds bot is in
-      for (const guild of discord_client.guilds.cache.values()) {
+      for (const guild of discordClient.guilds.cache.values()) {
         await guild.commands.create(commandData);
       }
       console.log("Slash command registered successfully.");
@@ -92,10 +92,10 @@ export const setupDiscordBot = (
   });
 
   // Slash command interaction
-  discord_client.on("interactionCreate", async (interaction) => {
+  discordClient.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName === "startchat") {
-      await handleStartChatCommand(interaction, discord_client, ollama_client);
+      await handleStartChatCommand(interaction, discordClient, ollamaClient);
     }
   });
 };
@@ -109,15 +109,15 @@ const handleStartChatCommand = async (
 
   // Get options values from the command, or fallback to defaults
   const temperature = interaction.options.getNumber("temperature") ?? undefined;
-  const top_k = interaction.options.getNumber("top_k") ?? undefined;
-  const top_p = interaction.options.getNumber("top_p") ?? undefined;
-  const repeat_penalty =
+  const topK = interaction.options.getNumber("top_k") ?? undefined;
+  const topP = interaction.options.getNumber("top_p") ?? undefined;
+  const repeatPenalty =
     interaction.options.getNumber("repeat_penalty") ?? undefined;
-  const frequency_penalty =
+  const frequencyPenalty =
     interaction.options.getNumber("frequency_penalty") ?? undefined;
-  const presence_penalty =
+  const presencePenalty =
     interaction.options.getNumber("presence_penalty") ?? undefined;
-  const num_ctx = interaction.options.getNumber("num_ctx") ?? undefined;
+  const numCtx = interaction.options.getNumber("num_ctx") ?? undefined;
 
   // Create a new thread
   const thread = (await (interaction.channel as TextChannel)?.threads.create({
@@ -142,20 +142,20 @@ const handleStartChatCommand = async (
 
     await handleUserMessage(message, client, ollama, thread, {
       temperature,
-      topK: top_k,
-      topP: top_p,
-      repeatPenalty: repeat_penalty,
-      frequencyPenalty: frequency_penalty,
-      presencePenalty: presence_penalty,
-      numCtx: num_ctx,
+      topK: topK,
+      topP: topP,
+      repeatPenalty: repeatPenalty,
+      frequencyPenalty: frequencyPenalty,
+      presencePenalty: presencePenalty,
+      numCtx: numCtx,
     });
   });
 };
 
 const handleUserMessage = async (
   message: Message,
-  discord_client: Client,
-  ollama_client: Ollama,
+  discordClient: Client,
+  ollamaClient: Ollama,
   thread: ThreadChannel,
   options: OllamaModelOptions,
 ) => {
@@ -172,7 +172,7 @@ const handleUserMessage = async (
     currentChatHistory = fetchedMessages
       .sort((a, b) => a.createdTimestamp - b.createdTimestamp) // Sort messages by timestamp
       .map((msg) => ({
-        role: msg.author.id === discord_client.user?.id ? "assistant" : "user",
+        role: msg.author.id === discordClient.user?.id ? "assistant" : "user",
         content: msg.content,
       })) as ChatMessage[];
 
@@ -194,7 +194,7 @@ const handleUserMessage = async (
   };
 
   try {
-    const response = await chatWithModel(ollama_client, prompt);
+    const response = await chatWithModel(ollamaClient, prompt);
 
     // Add the bot response to the current chat history
     currentChatHistory.push({ role: "assistant", content: response });
