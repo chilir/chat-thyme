@@ -1,3 +1,5 @@
+// src/ui/discord.ts
+
 import {
   type ChatInputCommandInteraction,
   type Client,

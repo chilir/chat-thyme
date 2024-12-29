@@ -1,3 +1,5 @@
+// src/interfaces.ts
+
 export interface OllamaModelOptions {
   temperature?: number;
   topK?: number;

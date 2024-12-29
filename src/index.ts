@@ -1,3 +1,5 @@
+// src/index.ts
+
 import { Client, GatewayIntentBits } from "discord.js";
 import { Ollama } from "ollama";
 import { config } from "./config";
