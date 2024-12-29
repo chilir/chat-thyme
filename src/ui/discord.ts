@@ -13,7 +13,7 @@ import type {
   ChatMessage,
   OllamaChatPrompt,
   OllamaModelOptions,
-} from "../types";
+} from "../interfaces";
 
 // Chat history cache
 const chatHistories = new Map<string, ChatMessage[]>();
@@ -142,12 +142,12 @@ const handleStartChatCommand = async (
 
     await handleUserMessage(message, client, ollama, thread, {
       temperature,
-      top_k,
-      top_p,
-      repeat_penalty,
-      frequency_penalty,
-      presence_penalty,
-      num_ctx,
+      topK: top_k,
+      topP: top_p,
+      repeatPenalty: repeat_penalty,
+      frequencyPenalty: frequency_penalty,
+      presencePenalty: presence_penalty,
+      numCtx: num_ctx,
     });
   });
 };
@@ -187,8 +187,8 @@ const handleUserMessage = async (
   currentChatHistory.push({ role: "user", content: message.content });
 
   const prompt: OllamaChatPrompt = {
-    model_name: config.OLLAMA_MODEL, // guaranteed to be set already
-    past_messages: currentChatHistory,
+    modelName: config.OLLAMA_MODEL, // guaranteed to be set already
+    pastMessages: currentChatHistory,
     prompt: message.content,
     options: options,
   };
