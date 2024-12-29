@@ -7,13 +7,13 @@ import {
   type ThreadChannel,
 } from "discord.js";
 import type { Ollama } from "ollama";
+import { chatWithModel } from "../backend/ollama";
 import { config } from "../config";
 import type {
   ChatMessage,
   OllamaChatPrompt,
   OllamaModelOptions,
 } from "../types";
-import { chatWithModel } from "./ollama_chat";
 
 // Chat history cache
 const chatHistories = new Map<string, ChatMessage[]>();

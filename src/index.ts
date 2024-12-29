@@ -1,7 +1,7 @@
 import { Client, GatewayIntentBits } from "discord.js";
 import { Ollama } from "ollama";
 import { config } from "./config";
-import { setupDiscordBot } from "./services/discord_bot";
+import { setupDiscordBot } from "./ui/discord";
 
 const ollama_client = new Ollama({
   host: config.OLLAMA_SERVER_URL,
