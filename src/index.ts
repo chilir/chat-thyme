@@ -3,11 +3,11 @@ import { Ollama } from "ollama";
 import { config } from "./config";
 import { setupDiscordBot } from "./ui/discord";
 
-const ollama_client = new Ollama({
+const ollamaClient = new Ollama({
   host: config.OLLAMA_SERVER_URL,
 });
 
-const discord_client = new Client({
+const discordClient = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
@@ -15,6 +15,6 @@ const discord_client = new Client({
   ],
 });
 
-setupDiscordBot(discord_client, ollama_client);
+setupDiscordBot(discordClient, ollamaClient);
 
-discord_client.login(config.DISCORD_TOKEN);
+discordClient.login(config.DISCORD_TOKEN);

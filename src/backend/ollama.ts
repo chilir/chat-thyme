@@ -2,11 +2,11 @@ import type { Ollama } from "ollama";
 import type { OllamaChatPrompt } from "../interfaces";
 
 export async function chatWithModel(
-  ollama_client: Ollama,
+  ollamaClient: Ollama,
   prompt: OllamaChatPrompt,
 ): Promise<string> {
   try {
-    const response = await ollama_client.chat({
+    const response = await ollamaClient.chat({
       model: prompt.modelName,
       messages: prompt.pastMessages,
       options: prompt.options,
