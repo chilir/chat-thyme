@@ -9,7 +9,7 @@ import {
   type ThreadChannel,
 } from "discord.js";
 import type { Ollama } from "ollama";
-import { chatWithModel } from "../llm-backend/ollama";
+import { chatWithModel } from "../llm-service/ollama";
 import { config } from "../config";
 import type {
   ChatMessage,
