@@ -1,4 +1,4 @@
-// src/llm-backend/ollama.ts
+// src/llm-service/ollama.ts
 
 import type { Ollama } from "ollama";
 import type { OllamaChatPrompt } from "../interfaces";
