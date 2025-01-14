@@ -17,7 +17,6 @@ export interface ChatMessage {
 
 export interface OllamaChatPrompt {
   modelName: string;
-  pastMessages: ChatMessage[];
-  prompt: string;
+  messages: ChatMessage[];
   options: OllamaModelOptions;
 }
