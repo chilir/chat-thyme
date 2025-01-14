@@ -3,14 +3,23 @@
 import { Database } from "bun:sqlite";
 import path from "node:path";
 
-const dbCache = new Map<string, Database>();
+const userDbCache = new Map<string, { dbFilePath: string; dbObj: Database }>();
 
-export const initializeDatabase = async (userId: string) => {
-  const existingDb = dbCache.get(userId);
-  if (existingDb) return existingDb;
+export const getOrInitializeDatabase = async (userId: string) => {
+  const existingDb = userDbCache.get(userId);
+  if (existingDb) {
+    console.log(
+      `Existing database located at ${existingDb.dbFilePath} for user ${userId} found in cache.`,
+    );
+    return existingDb.dbObj;
+  }
 
-  const dbPath = path.resolve(`./chat_history_${userId}.db`);
-  const db = new Database(dbPath);
+  const dbPath = path.resolve(`./chat_history_${userId}.sqlite`);
+  console.log(
+    `No existing database found in cache for user ${userId}.
+    Initializing new database object from ${dbPath}.`,
+  );
+  const db = new Database(dbPath, { create: true });
   db.run(`
     CREATE TABLE IF NOT EXISTS chat_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,14 +29,6 @@ export const initializeDatabase = async (userId: string) => {
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  dbCache.set(userId, db);
-  return db;
-};
-
-export const getDatabase = (userId: string): Database => {
-  const db = dbCache.get(userId);
-  if (!db) {
-    throw new Error("Database not initialized. Call initializeDatabase first.");
-  }
+  userDbCache.set(userId, { dbFilePath: dbPath, dbObj: db });
   return db;
 };
