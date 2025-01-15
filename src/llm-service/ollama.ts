@@ -10,7 +10,7 @@ export async function chatWithModel(
   try {
     const response = await ollamaClient.chat({
       model: prompt.modelName,
-      messages: prompt.pastMessages,
+      messages: prompt.messages,
       options: prompt.options,
       stream: false,
     });
