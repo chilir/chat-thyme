@@ -9,7 +9,8 @@ export const getOrInitializeDatabase = async (userId: string) => {
   const existingDb = userDbCache.get(userId);
   if (existingDb) {
     console.log(
-      `Existing database located at ${existingDb.dbFilePath} for user ${userId} found in cache.`,
+      `Existing database located at ${existingDb.dbFilePath} for user ` +
+        `${userId} found in cache.`,
     );
     return existingDb.dbObj;
   }

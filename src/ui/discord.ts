@@ -9,13 +9,15 @@ import {
   type ThreadChannel,
 } from "discord.js";
 import type { Ollama } from "ollama";
-import { chatWithModel } from "../llm-service/ollama";
+import { fetchChatHistory, processUserMessage } from "../chat";
 import { config } from "../config";
+import { getOrInitializeDatabase } from "../db/sqlite";
 import type {
   ChatMessage,
   OllamaChatPrompt,
   OllamaModelOptions,
 } from "../interfaces";
+import { chatWithModel } from "../llm-service/ollama";
 
 // Chat history cache
 const chatHistories = new Map<string, ChatMessage[]>();
@@ -165,44 +167,16 @@ const handleUserMessage = async (
     await message.channel.sendTyping(); // Show typing indicator to the user
   }
 
-  let currentChatHistory: ChatMessage[] = chatHistories.get(thread.id) ?? [];
-
-  if (currentChatHistory.length === 0) {
-    // Fetch all messages in the thread
-    const fetchedMessages = await thread.messages.fetch({ limit: 100 });
-
-    currentChatHistory = fetchedMessages
-      .sort((a, b) => a.createdTimestamp - b.createdTimestamp) // Sort messages by timestamp
-      .map((msg) => ({
-        role: msg.author.id === discordClient.user?.id ? "assistant" : "user",
-        content: msg.content,
-      })) as ChatMessage[];
-
-    // Add default system prompt message at the beginning of the history
-    currentChatHistory.unshift({
-      role: "system",
-      content: config.OLLAMA_MODEL_SYSTEM_PROMPT,
-    });
-  }
-
-  //Add the user message to the current chat history
-  currentChatHistory.push({ role: "user", content: message.content });
-
-  const prompt: OllamaChatPrompt = {
-    modelName: config.OLLAMA_MODEL, // guaranteed to be set already
-    pastMessages: currentChatHistory,
-    prompt: message.content,
-    options: options,
-  };
+  const userDb = await getOrInitializeDatabase(message.author.id);
 
   try {
-    const response = await chatWithModel(ollamaClient, prompt);
-
-    // Add the bot response to the current chat history
-    currentChatHistory.push({ role: "assistant", content: response });
-
-    // Save history in cache
-    chatHistories.set(thread.id, currentChatHistory);
+    const response = await processUserMessage(
+      userDb,
+      ollamaClient,
+      thread.id,
+      message.content,
+      options,
+    );
 
     message.reply(response).catch((err) => {
       console.log("There was an error sending the message", err);

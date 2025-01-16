@@ -51,7 +51,7 @@ export const processUserMessage = async (
   threadId: string,
   messageContent: string,
   options: OllamaModelOptions,
-): Promise<void> => {
+): Promise<string> => {
   const currentChatMessages = await fetchChatHistory(db, threadId);
 
   currentChatMessages.push({ role: "user", content: messageContent });
@@ -68,4 +68,6 @@ export const processUserMessage = async (
 
   await saveChatMessage(db, threadId, "user", messageContent);
   await saveChatMessage(db, threadId, "assistant", response);
+
+  return response;
 };
