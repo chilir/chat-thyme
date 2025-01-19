@@ -20,3 +20,7 @@ export interface OllamaChatPrompt {
   messages: ChatMessage[];
   options: OllamaModelOptions;
 }
+
+export interface ChatIdExistence {
+  exists: number;  // 1 if exists, 0 if not
+}
