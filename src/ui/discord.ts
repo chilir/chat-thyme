@@ -9,18 +9,9 @@ import {
   type ThreadChannel,
 } from "discord.js";
 import type { Ollama } from "ollama";
-import { fetchChatHistory, processUserMessage } from "../chat";
-import { config } from "../config";
+import { processUserMessage } from "../chat";
 import { getOrInitializeDatabase } from "../db/sqlite";
-import type {
-  ChatMessage,
-  OllamaChatPrompt,
-  OllamaModelOptions,
-} from "../interfaces";
-import { chatWithModel } from "../llm-service/ollama";
-
-// Chat history cache
-const chatHistories = new Map<string, ChatMessage[]>();
+import type { OllamaModelOptions } from "../interfaces";
 
 export const setupDiscordBot = (
   discordClient: Client,
@@ -144,7 +135,7 @@ const handleStartChatCommand = async (
     // Ignore messages from the bot itself
     if (message.author.id === client.user?.id) return;
 
-    await handleUserMessage(message, client, ollama, thread, {
+    await handleUserMessage(message, ollama, thread, {
       temperature,
       topK: topK,
       topP: topP,
@@ -158,7 +149,6 @@ const handleStartChatCommand = async (
 
 const handleUserMessage = async (
   message: Message,
-  discordClient: Client,
   ollamaClient: Ollama,
   thread: ThreadChannel,
   options: OllamaModelOptions,
