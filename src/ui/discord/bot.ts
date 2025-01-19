@@ -1,4 +1,4 @@
-// src/ui/discord.ts
+// src/ui/discord/bot.ts
 
 import {
   type ChatInputCommandInteraction,
@@ -9,9 +9,16 @@ import {
   type ThreadChannel,
 } from "discord.js";
 import type { Ollama } from "ollama";
-import { processUserMessage } from "../chat";
-import { getOrInitializeDatabase } from "../db/sqlite";
-import type { OllamaModelOptions } from "../interfaces";
+import {
+  adjectives,
+  animals,
+  colors,
+  uniqueNamesGenerator,
+} from "unique-names-generator";
+import { processUserMessage } from "../../chat";
+import { getOrInitializeDatabase } from "../../db/sqlite";
+import type { OllamaModelOptions } from "../../interfaces";
+import { startChatCommandData } from "./commands";
 
 export const setupDiscordBot = (
   discordClient: Client,
@@ -22,63 +29,9 @@ export const setupDiscordBot = (
     console.log(`Logged in as ${discordClient.user?.tag}!`);
     // Register the slash command
     try {
-      const commandData = new SlashCommandBuilder()
-        .setName("startchat")
-        .setDescription("Start a chat with the LLM.")
-        .addNumberOption((option) =>
-          option
-            .setName("temperature")
-            .setDescription("The temperature of the model (0-2)")
-            .setMinValue(0)
-            .setMaxValue(2),
-        )
-        .addNumberOption((option) =>
-          option
-            .setName("top_k")
-            .setDescription("The top_k of the model (0-100)")
-            .setMinValue(0)
-            .setMaxValue(100),
-        )
-        .addNumberOption((option) =>
-          option
-            .setName("top_p")
-            .setDescription("The top_p of the model (0-1)")
-            .setMinValue(0)
-            .setMaxValue(1),
-        )
-        .addNumberOption((option) =>
-          option
-            .setName("repeat_penalty")
-            .setDescription("The repeat_penalty of the model (0-2)")
-            .setMinValue(0)
-            .setMaxValue(2),
-        )
-        .addNumberOption((option) =>
-          option
-            .setName("frequency_penalty")
-            .setDescription("The frequency_penalty of the model (0-2)")
-            .setMinValue(0)
-            .setMaxValue(2),
-        )
-        .addNumberOption((option) =>
-          option
-            .setName("presence_penalty")
-            .setDescription("The presence_penalty of the model (0-2)")
-            .setMinValue(0)
-            .setMaxValue(2),
-        )
-        .addNumberOption((option) =>
-          option
-            .setName("num_ctx")
-            .setDescription(
-              "Sets the size of the context window used to generate the next token",
-            )
-            .setMinValue(1),
-        );
-
       // Register command on all the guilds bot is in
       for (const guild of discordClient.guilds.cache.values()) {
-        await guild.commands.create(commandData);
+        await guild.commands.create(startChatCommandData);
       }
       console.log("Slash command registered successfully.");
     } catch (error) {
@@ -97,10 +50,18 @@ export const setupDiscordBot = (
 
 const handleStartChatCommand = async (
   interaction: ChatInputCommandInteraction,
-  client: Client,
-  ollama: Ollama,
+  discordClient: Client,
+  ollamaClient: Ollama,
 ) => {
   await interaction.deferReply();
+
+  // TODO: need to add a check at some point for uniqueness against existing
+  // DB values, but it's a bit complex because DB access isn't avaialble until
+  // message handling below
+  const chatIdentifier = uniqueNamesGenerator({
+    dictionaries: [adjectives, colors, animals],
+    separator: "-",
+  });
 
   // Get options values from the command, or fallback to defaults
   const temperature = interaction.options.getNumber("temperature") ?? undefined;
@@ -116,7 +77,7 @@ const handleStartChatCommand = async (
 
   // Create a new thread
   const thread = (await (interaction.channel as TextChannel)?.threads.create({
-    name: `Chat with ${interaction.user.username}`,
+    name: `Chat with ${interaction.user.username}: ${chatIdentifier}`,
     autoArchiveDuration: 60,
     reason: `LLM chat requested by ${interaction.user.username}`,
   })) as ThreadChannel;
@@ -130,12 +91,12 @@ const handleStartChatCommand = async (
   await interaction.editReply(`Started a new chat thread: <#${thread.id}>`);
 
   // Setup event listener for every new message in the thread
-  client.on("messageCreate", async (message) => {
+  discordClient.on("messageCreate", async (message) => {
     if (message.channelId !== thread.id) return;
     // Ignore messages from the bot itself
-    if (message.author.id === client.user?.id) return;
+    if (message.author.id === discordClient.user?.id) return;
 
-    await handleUserMessage(message, ollama, thread, {
+    await handleUserMessage(message, ollamaClient, chatIdentifier, {
       temperature,
       topK: topK,
       topP: topP,
@@ -150,7 +111,7 @@ const handleStartChatCommand = async (
 const handleUserMessage = async (
   message: Message,
   ollamaClient: Ollama,
-  thread: ThreadChannel,
+  chatIdentifier: string,
   options: OllamaModelOptions,
 ) => {
   if (message.channel.isTextBased() && "sendTyping" in message.channel) {
@@ -163,7 +124,7 @@ const handleUserMessage = async (
     const response = await processUserMessage(
       userDb,
       ollamaClient,
-      thread.id,
+      chatIdentifier,
       message.content,
       options,
     );
