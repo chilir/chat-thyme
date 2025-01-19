@@ -12,7 +12,8 @@
   "dependencies": {
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.7",
-    "ollama": "^0.5.11"
+    "ollama": "^0.5.11",
+    "unique-names-generator": "^4.7.1"
   },
   "trustedDependencies": [
     "@biomejs/biome"
