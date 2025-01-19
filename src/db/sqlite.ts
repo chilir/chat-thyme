@@ -28,6 +28,9 @@ export const getOrInitializeDatabase = async (userId: string) => {
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  db.run(
+    "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON chat_messages(chat_id)",
+  );
   userDbCache.set(userId, { dbFilePath: dbPath, dbObj: db });
   return db;
 };
