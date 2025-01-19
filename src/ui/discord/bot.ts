@@ -3,7 +3,6 @@
 import type {
   ChatInputCommandInteraction,
   Client,
-  CommandInteractionOptionResolver,
   Message,
   TextChannel,
   ThreadChannel,
@@ -18,7 +17,7 @@ import {
 import { processUserMessage } from "../../chat";
 import { getOrInitializeDatabase } from "../../db/sqlite";
 import type { OllamaModelOptions } from "../../interfaces";
-import { startChatCommandData } from "./commands";
+import { resumeChatCommandData, startChatCommandData } from "./commands";
 
 export const setupDiscordBot = (
   discordClient: Client,
@@ -30,7 +29,11 @@ export const setupDiscordBot = (
     try {
       // Register command on all the guilds bot is in
       for (const guild of discordClient.guilds.cache.values()) {
+        // First, delete all existing commands
+        await guild.commands.set([]);
+        // Then register the new commands
         await guild.commands.create(startChatCommandData);
+        await guild.commands.create(resumeChatCommandData);
       }
       console.log("Slash command registered successfully.");
     } catch (error) {
@@ -41,8 +44,10 @@ export const setupDiscordBot = (
   // Slash command interaction
   discordClient.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
-    if (interaction.commandName === "startchat") {
+    if (interaction.commandName === "start-chat") {
       await handleStartChatCommand(interaction, discordClient, ollamaClient);
+    } else if (interaction.commandName === "resume-chat") {
+      await handleResumeChatCommand(interaction, discordClient, ollamaClient);
     }
   });
 };
@@ -98,6 +103,52 @@ const handleStartChatCommand = async (
     name: threadName,
     autoArchiveDuration: autoArchiveMinutes,
     reason: `LLM chat requested by ${interaction.user.username}`,
+  })) as ThreadChannel;
+
+  if (!thread) {
+    await interaction.editReply("There was an error creating a new thread.");
+    return;
+  }
+
+  // Respond in the new thread
+  await interaction.editReply(`Started a new chat thread: <#${thread.id}>`);
+
+  // Setup event listener for every new message in the thread
+  discordClient.on("messageCreate", async (message) => {
+    if (message.channelId !== thread.id) return;
+    // Ignore messages from the bot itself
+    if (message.author.id === discordClient.user?.id) return;
+
+    await handleUserMessage(
+      message,
+      ollamaClient,
+      chatIdentifier,
+      getModelOptions(interaction),
+    );
+  });
+};
+
+const handleResumeChatCommand = async (
+  interaction: ChatInputCommandInteraction,
+  discordClient: Client,
+  ollamaClient: Ollama,
+) => {
+  await interaction.deferReply();
+
+  // TODO: need to check if this chat identifier exists in the DB or not
+  const chatIdentifier = interaction.options.getString("chat_identifier", true);
+
+  const threadName = interaction.options.getString("thread_name")
+    ? `(${chatIdentifier}) ${interaction.options.getString("thread_name")}`
+    : `Chat with ${interaction.user.username}: ${chatIdentifier}`;
+  const autoArchiveMinutes =
+    interaction.options.getNumber("auto_archive_minutes") ?? 60;
+
+  // Create a new thread
+  const thread = (await (interaction.channel as TextChannel)?.threads.create({
+    name: threadName,
+    autoArchiveDuration: autoArchiveMinutes,
+    reason: `LLM chat resumption in a new thread requested by ${interaction.user.username}`,
   })) as ThreadChannel;
 
   if (!thread) {
