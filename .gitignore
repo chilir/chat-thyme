@@ -177,3 +177,6 @@ dist
 # Nix related
 .direnv
 result
+
+# Sqlite
+.sqlite/

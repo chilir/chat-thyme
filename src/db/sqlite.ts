@@ -1,21 +1,19 @@
 // src/db/sqlite.ts
 
 import { Database } from "bun:sqlite";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 const userDbCache = new Map<string, { dbFilePath: string; dbObj: Database }>();
 
 export const getOrInitializeDatabase = async (userId: string) => {
   const existingDb = userDbCache.get(userId);
-  if (existingDb) {
-    console.log(
-      `Existing database located at ${existingDb.dbFilePath} for user ` +
-        `${userId} found in cache.`,
-    );
-    return existingDb.dbObj;
-  }
+  if (existingDb) return existingDb.dbObj;
 
-  const dbPath = path.resolve(`./chat_history_${userId}.sqlite`);
+  // will do nothing if dir already exists
+  await mkdir(path.resolve(".sqlite"), { recursive: true });
+
+  const dbPath = path.resolve(`.sqlite/chat_history_${userId}.db`);
   console.log(
     `No existing database found in cache for user ${userId}.
     Initializing new database object from ${dbPath}.`,
