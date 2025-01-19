@@ -55,7 +55,7 @@ const handleStartChatCommand = async (
   await interaction.deferReply();
 
   // TODO: need to add a check at some point for uniqueness against existing
-  // DB values, but it's a bit complex because DB access isn't avaialble until
+  // DB values, but it's a bit complex because DB access isn't available until
   // message handling below
   const chatIdentifier = uniqueNamesGenerator({
     dictionaries: [adjectives, colors, animals],
