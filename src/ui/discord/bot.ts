@@ -27,7 +27,6 @@ export const setupDiscordBot = (
   // Command registration
   discordClient.on("ready", async () => {
     console.log(`Logged in as ${discordClient.user?.tag}!`);
-    // Register the slash command
     try {
       // Register command on all the guilds bot is in
       for (const guild of discordClient.guilds.cache.values()) {
@@ -74,11 +73,16 @@ const handleStartChatCommand = async (
   const presencePenalty =
     interaction.options.getNumber("presence_penalty") ?? undefined;
   const numCtx = interaction.options.getNumber("num_ctx") ?? undefined;
+  const threadName = interaction.options.getString("thread_name")
+    ? `(${chatIdentifier}) ${interaction.options.getString("thread_name")}`
+    : `Chat with ${interaction.user.username}: ${chatIdentifier}`;
+  const autoArchiveMinutes =
+    interaction.options.getNumber("auto_archive_minutes") ?? 60;
 
   // Create a new thread
   const thread = (await (interaction.channel as TextChannel)?.threads.create({
-    name: `Chat with ${interaction.user.username}: ${chatIdentifier}`,
-    autoArchiveDuration: 60,
+    name: threadName,
+    autoArchiveDuration: autoArchiveMinutes,
     reason: `LLM chat requested by ${interaction.user.username}`,
   })) as ThreadChannel;
 
