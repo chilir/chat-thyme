@@ -1,6 +1,7 @@
 // src/chat.ts
 
 import type { Database } from "bun:sqlite";
+import type { Ollama } from "ollama";
 import { config } from "./config";
 import type {
   ChatMessage,
@@ -8,17 +9,16 @@ import type {
   OllamaModelOptions,
 } from "./interfaces";
 import { chatWithModel } from "./llm-service/ollama";
-import type { Ollama } from "ollama";
 
 export const fetchChatHistory = async (
   db: Database,
-  threadId: string,
+  chatIdentifier: string,
 ): Promise<ChatMessage[]> => {
   const chatHistory = db
     .query(`
       SELECT role, content
       FROM chat_messages
-      WHERE thread_id = '${threadId}'
+      WHERE chat_id = '${chatIdentifier}'
       ORDER BY timestamp ASC
     `)
     .all() as ChatMessage[];
@@ -35,24 +35,24 @@ export const fetchChatHistory = async (
 
 export const saveChatMessage = async (
   db: Database,
-  threadId: string,
+  chatIdentifier: string,
   role: "user" | "assistant",
   content: string,
 ): Promise<void> => {
   db.run(
-    "INSERT INTO chat_messages (thread_id, role, content) VALUES (?, ?, ?)",
-    [threadId, role, content],
+    "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)",
+    [chatIdentifier, role, content],
   );
 };
 
 export const processUserMessage = async (
   db: Database,
   ollamaClient: Ollama,
-  threadId: string,
+  chatIdentifier: string,
   messageContent: string,
   options: OllamaModelOptions,
 ): Promise<string> => {
-  const currentChatMessages = await fetchChatHistory(db, threadId);
+  const currentChatMessages = await fetchChatHistory(db, chatIdentifier);
 
   currentChatMessages.push({ role: "user", content: messageContent });
 
@@ -66,8 +66,8 @@ export const processUserMessage = async (
 
   currentChatMessages.push({ role: "assistant", content: response });
 
-  await saveChatMessage(db, threadId, "user", messageContent);
-  await saveChatMessage(db, threadId, "assistant", response);
+  await saveChatMessage(db, chatIdentifier, "user", messageContent);
+  await saveChatMessage(db, chatIdentifier, "assistant", response);
 
   return response;
 };
