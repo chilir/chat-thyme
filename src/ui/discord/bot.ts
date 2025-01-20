@@ -56,7 +56,7 @@ export const setupDiscordBot = (
 };
 
 const chatIdentifierExistenceQuery =
-  "SELECT EXISTS(SELECT 1 FROM chat_messages WHERE chat_id = ?) as exists";
+  "SELECT EXISTS(SELECT 1 FROM chat_messages WHERE chat_id = ?) AS 'exists'";
 
 const getModelOptions = (
   interaction: ChatInputCommandInteraction,
