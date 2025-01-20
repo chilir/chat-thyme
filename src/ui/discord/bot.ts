@@ -28,7 +28,7 @@ export const setupDiscordBot = (
   discordClient.on("ready", async () => {
     console.log(`Logged in as ${discordClient.user?.tag}!`);
     try {
-      // Register command on all the guilds bot is in
+      // Register commands on all the guilds bot is in
       for (const guild of discordClient.guilds.cache.values()) {
         // First, delete all existing commands
         await guild.commands.set([]);
@@ -83,29 +83,14 @@ const getModelOptions = (
   };
 };
 
-const handleStartChatCommand = async (
+const createNewDiscordThreadAndUserMessageListener = async (
   interaction: ChatInputCommandInteraction,
+  chatIdentifier: string,
+  newDiscordThreadReason: string,
   discordClient: Client,
   ollamaClient: Ollama,
-) => {
-  await interaction.deferReply();
-
-  const userDb = await getOrInitializeDatabase(interaction.user.id);
-
-  // Generate a unique chat identifier - regenerate if value already exists in
-  // user DB
-  let chatIdentifier: string;
-  let chatIdExists: ChatIdExistence;
-  do {
-    chatIdentifier = uniqueNamesGenerator({
-      dictionaries: [adjectives, colors, animals],
-      separator: "-",
-    });
-    chatIdExists = userDb
-      .query(chatIdentifierExistenceQuery)
-      .get(chatIdentifier) as ChatIdExistence;
-  } while (chatIdExists.exists === 1);
-
+  userDb: Database,
+): Promise<void> => {
   // Get user specified Discord thread properties
   const threadName = interaction.options.getString("thread_name")
     ? `(${chatIdentifier}) ${interaction.options.getString("thread_name")}`
@@ -122,7 +107,7 @@ const handleStartChatCommand = async (
     )?.threads.create({
       name: threadName,
       autoArchiveDuration: autoArchiveMinutes,
-      reason: `LLM chat requested by ${interaction.user.username}`,
+      reason: newDiscordThreadReason,
     })) as ThreadChannel;
 
     if (!newDiscordThread) {
@@ -162,6 +147,39 @@ const handleStartChatCommand = async (
   });
 };
 
+const handleStartChatCommand = async (
+  interaction: ChatInputCommandInteraction,
+  discordClient: Client,
+  ollamaClient: Ollama,
+) => {
+  await interaction.deferReply();
+
+  const userDb = await getOrInitializeDatabase(interaction.user.id);
+
+  // Generate a unique chat identifier - regenerate if value already exists in
+  // user DB
+  let chatIdentifier: string;
+  let chatIdExists: ChatIdExistence;
+  do {
+    chatIdentifier = uniqueNamesGenerator({
+      dictionaries: [adjectives, colors, animals],
+      separator: "-",
+    });
+    chatIdExists = userDb
+      .query(chatIdentifierExistenceQuery)
+      .get(chatIdentifier) as ChatIdExistence;
+  } while (chatIdExists.exists === 1);
+
+  createNewDiscordThreadAndUserMessageListener(
+    interaction,
+    chatIdentifier,
+    `New LLM chat requested by ${interaction.user.username}`,
+    discordClient,
+    ollamaClient,
+    userDb,
+  );
+};
+
 const handleResumeChatCommand = async (
   interaction: ChatInputCommandInteraction,
   discordClient: Client,
@@ -181,60 +199,14 @@ const handleResumeChatCommand = async (
     return;
   }
 
-  // Get user specified Discord thread properties
-  const threadName = interaction.options.getString("thread_name")
-    ? `(${chatIdentifier}) ${interaction.options.getString("thread_name")}`
-    : `Chat with ${interaction.user.username}: ${chatIdentifier}`;
-  const autoArchiveMinutes =
-    interaction.options.getNumber("auto_archive_minutes") ?? 60;
-
-  // Create a new thread
-  // TODO: add retry logic and exponential backoff
-  let discordThread: ThreadChannel;
-  try {
-    const newDiscordThread = (await (
-      interaction.channel as TextChannel
-    )?.threads.create({
-      name: threadName,
-      autoArchiveDuration: autoArchiveMinutes,
-      reason: `New LLM chat requested by ${interaction.user.username}`,
-    })) as ThreadChannel;
-
-    if (!newDiscordThread) {
-      await interaction.editReply(
-        "Failed to create Discord thread - no Discord thread channel returned",
-      );
-      return;
-    }
-    discordThread = newDiscordThread;
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred";
-    await interaction.editReply(
-      `Error creating Discord thread: ${errorMessage}`,
-    );
-    return;
-  }
-
-  // Respond in the new thread
-  await interaction.editReply(
-    `Started a new chat thread: <#${discordThread.id}>`,
+  createNewDiscordThreadAndUserMessageListener(
+    interaction,
+    chatIdentifier,
+    `LLM chat resumption requested by ${interaction.user.username}`,
+    discordClient,
+    ollamaClient,
+    userDb,
   );
-
-  // Setup event listener for every new message in the thread
-  discordClient.on("messageCreate", async (message) => {
-    if (message.channelId !== discordThread.id) return;
-    // Ignore messages from the bot itself
-    if (message.author.id === discordClient.user?.id) return;
-
-    await handleUserMessage(
-      message,
-      ollamaClient,
-      chatIdentifier,
-      getModelOptions(interaction),
-      userDb,
-    );
-  });
 };
 
 const handleUserMessage = async (
