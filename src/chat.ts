@@ -41,16 +41,13 @@ export const saveChatMessage = async (
   content: string,
   timestamp?: Date,
 ): Promise<void> => {
-  const valuesToInsert = timestamp
-    ? "(chat_id, role, content, timestamp)"
-    : "(chat_id, role, content)";
+  const query = timestamp
+    ? "INSERT INTO chat_messages (chat_id, role, content, timestamp) VALUES (?, ?, ?, ?)"
+    : "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)";
   const params = timestamp
     ? [chatIdentifier, role, content, timestamp.toISOString()]
     : [chatIdentifier, role, content];
-  db.run(
-    `INSERT INTO chat_messages ${valuesToInsert} VALUES (?, ?, ?, ?)`,
-    params,
-  );
+  db.run(query, params);
 };
 
 export const processUserMessage = async (
