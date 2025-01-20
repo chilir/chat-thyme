@@ -23,6 +23,7 @@ export const fetchChatHistory = async (
     `)
     .all() as ChatMessage[];
 
+  // beginning of chat - set the system prompt
   if (chatHistory.length === 0) {
     chatHistory.push({
       role: "system",
@@ -38,11 +39,15 @@ export const saveChatMessage = async (
   chatIdentifier: string,
   role: "user" | "assistant",
   content: string,
+  timestamp?: Date,
 ): Promise<void> => {
-  db.run(
-    "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)",
-    [chatIdentifier, role, content],
-  );
+  const query = timestamp
+    ? "INSERT INTO chat_messages (chat_id, role, content, timestamp) VALUES (?, ?, ?, ?)"
+    : "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)";
+  const params = timestamp
+    ? [chatIdentifier, role, content, timestamp.toISOString()]
+    : [chatIdentifier, role, content];
+  db.run(query, params);
 };
 
 export const processUserMessage = async (
@@ -50,6 +55,7 @@ export const processUserMessage = async (
   ollamaClient: Ollama,
   chatIdentifier: string,
   messageContent: string,
+  messageTimestamp: Date,
   options: OllamaModelOptions,
 ): Promise<string> => {
   const currentChatMessages = await fetchChatHistory(db, chatIdentifier);
@@ -61,12 +67,17 @@ export const processUserMessage = async (
     messages: currentChatMessages,
     options: options,
   };
-
   const response = await chatWithModel(ollamaClient, prompt);
 
   currentChatMessages.push({ role: "assistant", content: response });
 
-  await saveChatMessage(db, chatIdentifier, "user", messageContent);
+  await saveChatMessage(
+    db,
+    chatIdentifier,
+    "user",
+    messageContent,
+    messageTimestamp,
+  );
   await saveChatMessage(db, chatIdentifier, "assistant", response);
 
   return response;

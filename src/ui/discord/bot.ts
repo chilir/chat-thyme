@@ -248,12 +248,15 @@ const handleUserMessage = async (
     await message.channel.sendTyping(); // Show typing indicator to the user
   }
 
+  message.createdAt
+
   try {
     const response = await processUserMessage(
       userDb,
       ollamaClient,
       chatIdentifier,
       message.content,
+      message.createdAt,
       modelOptions,
     );
 
