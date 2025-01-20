@@ -7,10 +7,19 @@ import { clearUserDbCache } from "./db/sqlite";
 import { setupDiscordBot } from "./ui/discord";
 
 // register explicit cleanup
-process.on("beforeExit", clearUserDbCache);
-process.on("SIGINT", clearUserDbCache);
-process.on("SIGTERM", clearUserDbCache);
-process.on("SIGQUIT", clearUserDbCache);
+process.on("exit", clearUserDbCache);
+process.on("SIGINT", () => {
+  clearUserDbCache();
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  clearUserDbCache();
+  process.exit(0);
+});
+process.on("SIGQUIT", () => {
+  clearUserDbCache();
+  process.exit(0);
+});
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
   clearUserDbCache();
