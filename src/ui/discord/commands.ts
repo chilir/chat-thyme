@@ -3,7 +3,7 @@
 import { SlashCommandBuilder } from "discord.js";
 
 export const startChatCommandData = new SlashCommandBuilder()
-  .setName("startchat")
+  .setName("start-chat")
   .setDescription("Start a chat with the LLM.")
   .addNumberOption((option) =>
     option
@@ -79,7 +79,7 @@ export const startChatCommandData = new SlashCommandBuilder()
   );
 
 export const resumeChatCommandData = new SlashCommandBuilder()
-  .setName("resumechat")
+  .setName("resume-chat")
   .setDescription("Resume a previous chat with the LLM.")
   .addStringOption((option) =>
     option
