@@ -16,7 +16,7 @@ import {
   uniqueNamesGenerator,
 } from "unique-names-generator";
 import { processUserMessage } from "../../chat";
-import { getOrInitializeDatabase } from "../../db/sqlite";
+import { getOrInitUserDb } from "../../db/sqlite";
 import type { ChatIdExistence, OllamaModelOptions } from "../../interfaces";
 import { resumeChatCommandData, startChatCommandData } from "./commands";
 
@@ -154,7 +154,7 @@ const handleStartChatCommand = async (
 ) => {
   await interaction.deferReply();
 
-  const userDb = await getOrInitializeDatabase(interaction.user.id);
+  const userDb = await getOrInitUserDb(interaction.user.id);
 
   // Generate a unique chat identifier - regenerate if value already exists in
   // user DB
@@ -187,7 +187,7 @@ const handleResumeChatCommand = async (
 ) => {
   await interaction.deferReply();
 
-  const userDb = await getOrInitializeDatabase(interaction.user.id);
+  const userDb = await getOrInitUserDb(interaction.user.id);
   const chatIdentifier = interaction.options.getString("chat_identifier", true);
 
   // Check if the user provided chat identifier exists in the user DB
