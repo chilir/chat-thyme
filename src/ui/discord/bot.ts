@@ -36,7 +36,9 @@ export const setupDiscordBot = (
         await guild.commands.create(startChatCommandData);
         await guild.commands.create(resumeChatCommandData);
       }
-      console.log("Slash command registered successfully.");
+      console.log(
+        "start-chat and resume-chat slash commands registered successfully.",
+      );
     } catch (error) {
       console.error("Error registering slash command:", error);
     }
@@ -52,6 +54,9 @@ export const setupDiscordBot = (
     }
   });
 };
+
+const chatIdentifierExistenceQuery =
+  "SELECT EXISTS(SELECT 1 FROM chat_messages WHERE chat_id = ?) as exists";
 
 const getModelOptions = (
   interaction: ChatInputCommandInteraction,
@@ -77,9 +82,6 @@ const getModelOptions = (
     numCtx: numCtx,
   };
 };
-
-const chatIdentifierExistenceQuery =
-  "SELECT EXISTS(SELECT 1 FROM chat_messages WHERE chat_id = ?) as exists";
 
 const handleStartChatCommand = async (
   interaction: ChatInputCommandInteraction,
@@ -190,13 +192,12 @@ const handleResumeChatCommand = async (
   // TODO: add retry logic and exponential backoff
   let discordThread: ThreadChannel;
   try {
-    // TODO: add retry logic and exponential backoff
     const newDiscordThread = (await (
       interaction.channel as TextChannel
     )?.threads.create({
       name: threadName,
       autoArchiveDuration: autoArchiveMinutes,
-      reason: `LLM chat requested by ${interaction.user.username}`,
+      reason: `New LLM chat requested by ${interaction.user.username}`,
     })) as ThreadChannel;
 
     if (!newDiscordThread) {
