@@ -31,4 +31,5 @@ export interface DbCacheEntry {
   dbFilePath: string;
   dbObj: Database;
   lastAccessed: number;
+  refCount: number;
 }
