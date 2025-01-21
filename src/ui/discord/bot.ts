@@ -21,6 +21,41 @@ import { getOrInitUserDb, releaseUserDb } from "../../db/sqlite";
 import type { ChatIdExistence, OllamaModelOptions } from "../../interfaces";
 import { resumeChatCommandData, startChatCommandData } from "./commands";
 
+// Keep track of active chat threads
+const activeChatThreads = new Map<
+  string,
+  { chatIdentifier: string; userId: string; modelOptions: OllamaModelOptions }
+>();
+
+const startArchivedThreadEviction = (discordClient: Client) => {
+  setInterval(
+    async () => {
+      for (const channelId of activeChatThreads.keys()) {
+        try {
+          const channel = await discordClient.channels.fetch(channelId);
+          if (channel?.isThread()) {
+            const thread = channel as ThreadChannel;
+            if (thread.archived) {
+              await thread.setLocked(true, "Thread archived and locked");
+              activeChatThreads.delete(channelId);
+            }
+          } else {
+            // If the channel is no longer a thread (e.g., deleted), remove it
+            // from the map
+            activeChatThreads.delete(channelId);
+          }
+        } catch (error) {
+          console.error(
+            `Error during archived thread eviction for ${channelId}:`,
+            error,
+          );
+        }
+      }
+    },
+    30 * 60 * 1000,
+  );
+};
+
 export const setupDiscordBot = (
   discordClient: Client,
   ollamaClient: Ollama,
@@ -43,6 +78,8 @@ export const setupDiscordBot = (
     } catch (error) {
       console.error("Error registering slash command:", error);
     }
+
+    startArchivedThreadEviction(discordClient);
   });
 
   // Slash command interaction
@@ -52,6 +89,24 @@ export const setupDiscordBot = (
       await handleStartChatCommand(interaction, discordClient, ollamaClient);
     } else if (interaction.commandName === "resume-chat") {
       await handleResumeChatCommand(interaction, discordClient, ollamaClient);
+    }
+  });
+
+  // Single message listener for all active chat threads started by slash
+  // commands
+  discordClient.on("messageCreate", async (message) => {
+    if (message.author.bot) return; // Ignore bot messages
+    const chatThreadInfo = activeChatThreads.get(message.channelId);
+    if (chatThreadInfo) {
+      if (message.author.id === chatThreadInfo.userId) {
+        await handleUserMessage(
+          message,
+          ollamaClient,
+          chatThreadInfo.chatIdentifier,
+          chatThreadInfo.modelOptions,
+          chatThreadInfo.userId,
+        );
+      }
     }
   });
 };
@@ -84,13 +139,10 @@ const getModelOptions = (
   };
 };
 
-const createNewDiscordThreadAndUserMessageListener = async (
+const createDiscordThread = async (
   interaction: ChatInputCommandInteraction,
   chatIdentifier: string,
   newDiscordThreadReason: string,
-  discordClient: Client,
-  ollamaClient: Ollama,
-  userId: string,
 ): Promise<void> => {
   // Get user specified Discord thread properties
   const threadName = interaction.options.getString("thread_name")
@@ -100,10 +152,10 @@ const createNewDiscordThreadAndUserMessageListener = async (
     interaction.options.getNumber("auto_archive_minutes") ?? 60;
 
   // Create a new Discord thread
-  let discordThread: ThreadChannel;
+  let newDiscordThread: ThreadChannel;
   try {
     // TODO: add retry logic and exponential backoff
-    const newDiscordThread = (await (
+    newDiscordThread = (await (
       interaction.channel as TextChannel
     )?.threads.create({
       name: threadName,
@@ -118,35 +170,27 @@ const createNewDiscordThreadAndUserMessageListener = async (
       );
       return;
     }
+
     newDiscordThread.setRateLimitPerUser(config.DISCORD_SLOW_MODE_SECONDS);
-    discordThread = newDiscordThread;
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error occurred";
     await interaction.editReply(
       `Error creating Discord thread: ${errorMessage}`,
     );
+    console.error("Error creating Discord thread:", error);
     return;
   }
 
   // Respond to the interaction
   await interaction.editReply(
-    `Started a new chat thread: <#${discordThread.id}>`,
+    `Started a new chat thread: <#${newDiscordThread.id}>`,
   );
 
-  // Setup event listener for every new message in the thread
-  discordClient.on("messageCreate", async (message) => {
-    if (message.channelId !== discordThread.id) return;
-    // Ignore messages not from the slash command user
-    if (message.author.id !== interaction.user.id) return;
-
-    await handleUserMessage(
-      message,
-      ollamaClient,
-      chatIdentifier,
-      getModelOptions(interaction),
-      interaction.user.id,
-    );
+  activeChatThreads.set(newDiscordThread.id, {
+    chatIdentifier: chatIdentifier,
+    userId: interaction.user.id,
+    modelOptions: getModelOptions(interaction),
   });
 };
 
@@ -163,25 +207,30 @@ const handleStartChatCommand = async (
   // user DB
   let chatIdentifier: string;
   let chatIdExists: ChatIdExistence;
-  do {
-    chatIdentifier = uniqueNamesGenerator({
-      dictionaries: [adjectives, colors, animals],
-      separator: "-",
-    });
-    chatIdExists = userDb
-      .query(chatIdentifierExistenceQuery)
-      .get(chatIdentifier) as ChatIdExistence;
-  } while (chatIdExists.exists === 1);
+  try {
+    do {
+      chatIdentifier = uniqueNamesGenerator({
+        dictionaries: [adjectives, colors, animals],
+        separator: "-",
+      });
+      chatIdExists = userDb
+        .query(chatIdentifierExistenceQuery)
+        .get(chatIdentifier) as ChatIdExistence;
+    } while (chatIdExists.exists === 1);
+  } catch (error) {
+    console.error("Error checking chat identifier existence:", error);
+    await interaction.editReply(
+      "An error occurred while checking for existing chat identifiers.",
+    );
+    throw error;
+  } finally {
+    await releaseUserDb(interaction.user.id);
+  }
 
-  releaseUserDb(interaction.user.id);
-
-  createNewDiscordThreadAndUserMessageListener(
+  await createDiscordThread(
     interaction,
     chatIdentifier,
     `New LLM chat requested by ${interaction.user.username}`,
-    discordClient,
-    ollamaClient,
-    interaction.user.id,
   );
 };
 
@@ -195,25 +244,31 @@ const handleResumeChatCommand = async (
   const userDb = await getOrInitUserDb(interaction.user.id);
   const chatIdentifier = interaction.options.getString("chat_identifier", true);
 
-  // Check if the user provided chat identifier exists in the user DB
-  const chatIdExists = userDb
-    .query(chatIdentifierExistenceQuery)
-    .get(chatIdentifier) as ChatIdExistence;
-
-  releaseUserDb(interaction.user.id);
+  let chatIdExists: ChatIdExistence;
+  try {
+    // Check if the user provided chat identifier exists in the user DB
+    chatIdExists = userDb
+      .query(chatIdentifierExistenceQuery)
+      .get(chatIdentifier) as ChatIdExistence;
+  } catch (error) {
+    console.error("Error checking chat identifier existence:", error);
+    await interaction.editReply(
+      "An error occurred while checking for existing chat identifiers.",
+    );
+    throw error;
+  } finally {
+    await releaseUserDb(interaction.user.id);
+  }
 
   if (chatIdExists.exists !== 1) {
     await interaction.editReply(`Chat "${chatIdentifier}" does not exist.`);
     return;
   }
 
-  createNewDiscordThreadAndUserMessageListener(
+  await createDiscordThread(
     interaction,
     chatIdentifier,
     `LLM chat resumption requested by ${interaction.user.username}`,
-    discordClient,
-    ollamaClient,
-    interaction.user.id,
   );
 };
 

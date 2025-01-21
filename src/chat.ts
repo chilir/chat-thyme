@@ -15,16 +15,23 @@ export const fetchChatHistory = async (
   chatIdentifier: string,
 ): Promise<ChatMessage[]> => {
   const userDb = await getOrInitUserDb(userId);
-  const chatHistory = userDb
-    .query(`
+
+  let chatHistory: ChatMessage[];
+  try {
+    chatHistory = userDb
+      .query(`
       SELECT role, content
       FROM chat_messages
       WHERE chat_id = '${chatIdentifier}'
       ORDER BY timestamp ASC
     `)
-    .all() as ChatMessage[];
-
-  releaseUserDb(userId);
+      .all() as ChatMessage[];
+  } catch (error) {
+    console.error("Error fetching chat history:", error);
+    throw error;
+  } finally {
+    await releaseUserDb(userId);
+  }
 
   // beginning of chat - set the system prompt
   if (chatHistory.length === 0) {
@@ -52,8 +59,15 @@ export const saveChatMessage = async (
     : [chatIdentifier, role, content];
 
   const userDb = await getOrInitUserDb(userId);
-  userDb.run(query, params);
-  releaseUserDb(userId);
+
+  try {
+    userDb.run(query, params);
+  } catch (error) {
+    console.error("Error saving chat message:", error);
+    throw error;
+  } finally {
+    await releaseUserDb(userId);
+  }
 };
 
 export const processUserMessage = async (
