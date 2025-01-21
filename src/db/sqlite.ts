@@ -59,7 +59,7 @@ export const getOrInitUserDb = async (userId: string) => {
   }
 
   // will do nothing if dir already exists
-  await mkdir(path.resolve(".sqlite"), { recursive: true });
+  await mkdir(path.resolve(config.DB_DIR), { recursive: true });
 
   // Initialize new db object from db file on disk
   const dbPath = path.resolve(`.sqlite/chat_history_${userId}.db`);
