@@ -7,27 +7,36 @@ import { clearUserDbCache } from "./db/sqlite";
 import { setupDiscordBot } from "./ui/discord";
 
 // register explicit cleanup
-process.on("exit", clearUserDbCache);
-process.on("SIGINT", () => {
-  clearUserDbCache();
+process.on("SIGINT", async () => {
+  console.log("SIGINT received. Cleaning up user DB cache...");
+  await clearUserDbCache();
+  console.log("Cleanup complete. Exiting...");
   process.exit(0);
 });
-process.on("SIGTERM", () => {
-  clearUserDbCache();
+process.on("SIGTERM", async () => {
+  console.log("SIGTERM received. Cleaning up user DB cache...");
+  await clearUserDbCache();
+  console.log("Cleanup complete. Exiting...");
   process.exit(0);
 });
-process.on("SIGQUIT", () => {
-  clearUserDbCache();
+process.on("SIGQUIT", async () => {
+  console.log("SIGQUIT received. Cleaning up user DB cache...");
+  await clearUserDbCache();
+  console.log("Cleanup complete. Exiting...");
   process.exit(0);
 });
-process.on("uncaughtException", (err) => {
+process.on("uncaughtException", async (err) => {
   console.error("Uncaught Exception:", err);
-  clearUserDbCache();
+  console.log("Cleaning up user DB cache...");
+  await clearUserDbCache();
+  console.log("Cleanup complete. Exiting...");
   process.exit(1);
 });
-process.on("unhandledRejection", (reason, promise) => {
+process.on("unhandledRejection", async (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  clearUserDbCache();
+  console.log("Cleaning up user DB cache...");
+  await clearUserDbCache();
+  console.log("Cleanup complete. Exiting...");
   process.exit(1);
 });
 
