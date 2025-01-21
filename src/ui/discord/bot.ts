@@ -1,12 +1,12 @@
 // src/ui/discord/bot.ts
 
-import type { Database } from "bun:sqlite";
-import type {
-  ChatInputCommandInteraction,
-  Client,
-  Message,
-  TextChannel,
-  ThreadChannel,
+import {
+  ChannelType,
+  type ChatInputCommandInteraction,
+  type Client,
+  type Message,
+  type TextChannel,
+  type ThreadChannel,
 } from "discord.js";
 import type { Ollama } from "ollama";
 import {
@@ -16,7 +16,7 @@ import {
   uniqueNamesGenerator,
 } from "unique-names-generator";
 import { processUserMessage } from "../../chat";
-import { getOrInitUserDb } from "../../db/sqlite";
+import { getOrInitUserDb, releaseUserDb } from "../../db/sqlite";
 import type { ChatIdExistence, OllamaModelOptions } from "../../interfaces";
 import { resumeChatCommandData, startChatCommandData } from "./commands";
 
@@ -89,7 +89,7 @@ const createNewDiscordThreadAndUserMessageListener = async (
   newDiscordThreadReason: string,
   discordClient: Client,
   ollamaClient: Ollama,
-  userDb: Database,
+  userId: string,
 ): Promise<void> => {
   // Get user specified Discord thread properties
   const threadName = interaction.options.getString("thread_name")
@@ -106,6 +106,7 @@ const createNewDiscordThreadAndUserMessageListener = async (
       interaction.channel as TextChannel
     )?.threads.create({
       name: threadName,
+      type: ChannelType.PrivateThread,
       autoArchiveDuration: autoArchiveMinutes,
       reason: newDiscordThreadReason,
     })) as ThreadChannel;
@@ -116,6 +117,7 @@ const createNewDiscordThreadAndUserMessageListener = async (
       );
       return;
     }
+    newDiscordThread.setRateLimitPerUser(10);
     discordThread = newDiscordThread;
   } catch (error) {
     const errorMessage =
@@ -126,7 +128,7 @@ const createNewDiscordThreadAndUserMessageListener = async (
     return;
   }
 
-  // Respond in the new thread
+  // Respond to the interaction
   await interaction.editReply(
     `Started a new chat thread: <#${discordThread.id}>`,
   );
@@ -134,15 +136,15 @@ const createNewDiscordThreadAndUserMessageListener = async (
   // Setup event listener for every new message in the thread
   discordClient.on("messageCreate", async (message) => {
     if (message.channelId !== discordThread.id) return;
-    // Ignore messages from the bot itself
-    if (message.author.id === discordClient.user?.id) return;
+    // Ignore messages not from the slash command user
+    if (message.author.id !== interaction.user.id) return;
 
     await handleUserMessage(
       message,
       ollamaClient,
       chatIdentifier,
       getModelOptions(interaction),
-      userDb,
+      interaction.user.id,
     );
   });
 };
@@ -170,13 +172,15 @@ const handleStartChatCommand = async (
       .get(chatIdentifier) as ChatIdExistence;
   } while (chatIdExists.exists === 1);
 
+  releaseUserDb(interaction.user.id);
+
   createNewDiscordThreadAndUserMessageListener(
     interaction,
     chatIdentifier,
     `New LLM chat requested by ${interaction.user.username}`,
     discordClient,
     ollamaClient,
-    userDb,
+    interaction.user.id,
   );
 };
 
@@ -194,6 +198,9 @@ const handleResumeChatCommand = async (
   const chatIdExists = userDb
     .query(chatIdentifierExistenceQuery)
     .get(chatIdentifier) as ChatIdExistence;
+
+  releaseUserDb(interaction.user.id);
+
   if (chatIdExists.exists !== 1) {
     await interaction.editReply(`Chat "${chatIdentifier}" does not exist.`);
     return;
@@ -205,7 +212,7 @@ const handleResumeChatCommand = async (
     `LLM chat resumption requested by ${interaction.user.username}`,
     discordClient,
     ollamaClient,
-    userDb,
+    interaction.user.id,
   );
 };
 
@@ -214,7 +221,7 @@ const handleUserMessage = async (
   ollamaClient: Ollama,
   chatIdentifier: string,
   modelOptions: OllamaModelOptions,
-  userDb: Database,
+  userId: string,
 ) => {
   if (message.channel.isTextBased() && "sendTyping" in message.channel) {
     await message.channel.sendTyping(); // Show typing indicator to the user
@@ -222,7 +229,7 @@ const handleUserMessage = async (
 
   try {
     const response = await processUserMessage(
-      userDb,
+      userId,
       ollamaClient,
       chatIdentifier,
       message.content,

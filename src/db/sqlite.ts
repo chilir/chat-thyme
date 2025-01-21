@@ -3,43 +3,60 @@
 import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { Mutex } from "async-mutex";
 import type { DbCacheEntry } from "../interfaces";
 
-const MAX_CACHE_SIZE = 10; // You can make this configurable
-const CACHE_TTL = 3600000; // Time to live in milliseconds (e.g., 1hr)
-const CACHE_CHECK_INTERVAL = 600000; // How often to check for expired entries (e.g., 10min)
+// TODO: make these configurable
+const DESIRED_MAX_CACHE_SIZE = 10;
+const CACHE_TTL = 3600000; // ms, 1hr
+const CACHE_CHECK_INTERVAL = 600000; // ms, 10min
 
 const userDbCache = new Map<string, DbCacheEntry>();
+const userDbCacheMutex = new Mutex();
 let cacheCheckIntervalId: ReturnType<typeof setInterval> | undefined;
 
 // background task
-const backgroundCheckAndEvictExpiredDbs = () => {
-  const now = Date.now();
-  userDbCache.forEach((entry, userId) => {
-    if (now - entry.lastAccessed > CACHE_TTL) {
-      console.log(`TTL expired for user ${userId}. Closing database.`);
-      entry.dbObj.close();
-      userDbCache.delete(userId);
-    }
-  });
+const backgroundEvictExpiredDbs = async () => {
+  const release = await userDbCacheMutex.acquire();
+  try {
+    const now = Date.now();
+    userDbCache.forEach((entry, userId) => {
+      if (now - entry.lastAccessed > CACHE_TTL && entry.refCount === 0) {
+        console.log(`
+          TTL expired and no active references for user ${userId}.
+          Closing database.
+        `);
+        entry.dbObj.close();
+        userDbCache.delete(userId);
+      }
+    });
+  } finally {
+    release();
+  }
 };
 
 // Initialize the background task when the module is loaded
 if (!cacheCheckIntervalId) {
   cacheCheckIntervalId = setInterval(
-    backgroundCheckAndEvictExpiredDbs,
+    backgroundEvictExpiredDbs,
     CACHE_CHECK_INTERVAL,
   );
 }
 
 export const getOrInitUserDb = async (userId: string) => {
-  const cachedDb = userDbCache.get(userId);
-  if (cachedDb) {
-    // Update last accessed and move to the end of the Map (LRU)
-    cachedDb.lastAccessed = Date.now();
-    userDbCache.delete(userId);
-    userDbCache.set(userId, cachedDb);
-    return cachedDb.dbObj;
+  const getCachedDbRelease = await userDbCacheMutex.acquire();
+  try {
+    const cachedDb = userDbCache.get(userId);
+    if (cachedDb) {
+      // Update last accessed and move to the end of the Map (LRU)
+      cachedDb.lastAccessed = Date.now();
+      cachedDb.refCount++;
+      userDbCache.delete(userId);
+      userDbCache.set(userId, cachedDb);
+      return cachedDb.dbObj;
+    }
+  } finally {
+    getCachedDbRelease();
   }
 
   // will do nothing if dir already exists
@@ -67,39 +84,70 @@ export const getOrInitUserDb = async (userId: string) => {
     "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_timestamp ON chat_messages(chat_id, timestamp)",
   );
 
-  // LRU cache eviction
-  if (userDbCache.size >= MAX_CACHE_SIZE) {
-    const keyToEvict = userDbCache.keys().next().value as string; // literally can't be undefined here
-    const entryToEvict = userDbCache.get(keyToEvict);
-    if (entryToEvict) {
-      console.log(
-        `Cache full. Evicting database connection for user ${keyToEvict}.`,
-      );
-      entryToEvict.dbObj.close();
-      userDbCache.delete(keyToEvict);
-    }
-  }
+  const addDbToCacheRelease = await userDbCacheMutex.acquire();
+  try {
+    // Best effort LRU cache eviction
+    if (userDbCache.size >= DESIRED_MAX_CACHE_SIZE) {
+      // Find the least recently used entry with refCount 0
+      let keyToEvict: string | undefined;
+      for (const [k, v] of userDbCache.entries()) {
+        if (v.refCount === 0) {
+          keyToEvict = k;
+          break;
+        }
+      }
 
-  // Add to cache
-  userDbCache.set(userId, {
-    dbFilePath: dbPath,
-    dbObj: db,
-    lastAccessed: Date.now(),
-  });
+      if (keyToEvict) {
+        const entryToEvict = userDbCache.get(keyToEvict) as DbCacheEntry;
+        console.log(
+          `Cache full. Evicting database connection for user ${keyToEvict}.`,
+        );
+        entryToEvict.dbObj.close();
+        userDbCache.delete(keyToEvict);
+      }
+    }
+
+    // Add to cache
+    userDbCache.set(userId, {
+      dbFilePath: dbPath,
+      dbObj: db,
+      lastAccessed: Date.now(),
+      refCount: 1, // initial ref count
+    });
+  } finally {
+    addDbToCacheRelease();
+  }
 
   return db;
 };
 
-export const clearUserDbCache = () => {
-  console.log(
-    "Clearing all database connections and stopping cache maintenance.",
-  );
-  for (const entry of userDbCache.values()) {
-    entry.dbObj.close();
+export const releaseUserDb = async (userId: string) => {
+  const release = await userDbCacheMutex.acquire();
+  try {
+    const cachedDbEntry = userDbCache.get(userId);
+    if (cachedDbEntry) {
+      cachedDbEntry.refCount = Math.max(0, cachedDbEntry.refCount - 1);
+    }
+  } finally {
+    release();
   }
-  userDbCache.clear();
-  if (cacheCheckIntervalId) {
-    clearInterval(cacheCheckIntervalId);
-    cacheCheckIntervalId = undefined;
+};
+
+export const clearUserDbCache = async () => {
+  const release = await userDbCacheMutex.acquire();
+  try {
+    console.log(
+      "Clearing all database connections and stopping cache maintenance.",
+    );
+    for (const entry of userDbCache.values()) {
+      entry.dbObj.close();
+    }
+    userDbCache.clear();
+    if (cacheCheckIntervalId) {
+      clearInterval(cacheCheckIntervalId);
+      cacheCheckIntervalId = undefined;
+    }
+  } finally {
+    release();
   }
 };

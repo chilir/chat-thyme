@@ -1,8 +1,8 @@
 // src/chat.ts
 
-import type { Database } from "bun:sqlite";
 import type { Ollama } from "ollama";
 import { config } from "./config";
+import { getOrInitUserDb, releaseUserDb } from "./db/sqlite";
 import type {
   ChatMessage,
   OllamaChatPrompt,
@@ -11,10 +11,11 @@ import type {
 import { chatWithModel } from "./llm-service/ollama";
 
 export const fetchChatHistory = async (
-  db: Database,
+  userId: string,
   chatIdentifier: string,
 ): Promise<ChatMessage[]> => {
-  const chatHistory = db
+  const userDb = await getOrInitUserDb(userId);
+  const chatHistory = userDb
     .query(`
       SELECT role, content
       FROM chat_messages
@@ -22,6 +23,8 @@ export const fetchChatHistory = async (
       ORDER BY timestamp ASC
     `)
     .all() as ChatMessage[];
+
+  releaseUserDb(userId);
 
   // beginning of chat - set the system prompt
   if (chatHistory.length === 0) {
@@ -35,7 +38,7 @@ export const fetchChatHistory = async (
 };
 
 export const saveChatMessage = async (
-  db: Database,
+  userId: string,
   chatIdentifier: string,
   role: "user" | "assistant",
   content: string,
@@ -47,18 +50,21 @@ export const saveChatMessage = async (
   const params = timestamp
     ? [chatIdentifier, role, content, timestamp.toISOString()]
     : [chatIdentifier, role, content];
-  db.run(query, params);
+
+  const userDb = await getOrInitUserDb(userId);
+  userDb.run(query, params);
+  releaseUserDb(userId);
 };
 
 export const processUserMessage = async (
-  db: Database,
+  userId: string,
   ollamaClient: Ollama,
   chatIdentifier: string,
   messageContent: string,
   messageTimestamp: Date,
   options: OllamaModelOptions,
 ): Promise<string> => {
-  const currentChatMessages = await fetchChatHistory(db, chatIdentifier);
+  const currentChatMessages = await fetchChatHistory(userId, chatIdentifier);
 
   currentChatMessages.push({ role: "user", content: messageContent });
 
@@ -67,18 +73,20 @@ export const processUserMessage = async (
     messages: currentChatMessages,
     options: options,
   };
+
+  // could take a while, don't hold userDbCache lock here
   const response = await chatWithModel(ollamaClient, prompt);
 
   currentChatMessages.push({ role: "assistant", content: response });
 
   await saveChatMessage(
-    db,
+    userId,
     chatIdentifier,
     "user",
     messageContent,
     messageTimestamp,
   );
-  await saveChatMessage(db, chatIdentifier, "assistant", response);
+  await saveChatMessage(userId, chatIdentifier, "assistant", response);
 
   return response;
 };
