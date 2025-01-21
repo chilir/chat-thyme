@@ -4,12 +4,8 @@ import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { Mutex } from "async-mutex";
+import { config } from "../config";
 import type { DbCacheEntry } from "../interfaces";
-
-// TODO: make these configurable
-const DESIRED_MAX_CACHE_SIZE = 10;
-const CACHE_TTL = 3600000; // ms, 1hr
-const CACHE_CHECK_INTERVAL = 600000; // ms, 10min
 
 const userDbCache = new Map<string, DbCacheEntry>();
 const userDbCacheMutex = new Mutex();
@@ -21,7 +17,10 @@ const backgroundEvictExpiredDbs = async () => {
   try {
     const now = Date.now();
     userDbCache.forEach((entry, userId) => {
-      if (now - entry.lastAccessed > CACHE_TTL && entry.refCount === 0) {
+      if (
+        now - entry.lastAccessed > config.DB_CACHE_TTL_MILLISECONDS &&
+        entry.refCount === 0
+      ) {
         console.log(`
           TTL expired and no active references for user ${userId}.
           Closing database.
@@ -39,7 +38,7 @@ const backgroundEvictExpiredDbs = async () => {
 if (!cacheCheckIntervalId) {
   cacheCheckIntervalId = setInterval(
     backgroundEvictExpiredDbs,
-    CACHE_CHECK_INTERVAL,
+    config.DB_CACHE_CHECK_INTERVAL_MILLISECONDS,
   );
 }
 
@@ -87,7 +86,7 @@ export const getOrInitUserDb = async (userId: string) => {
   const addDbToCacheRelease = await userDbCacheMutex.acquire();
   try {
     // Best effort LRU cache eviction
-    if (userDbCache.size >= DESIRED_MAX_CACHE_SIZE) {
+    if (userDbCache.size >= config.DESIRED_MAX_DB_CACHE_SIZE) {
       // Find the least recently used entry with refCount 0
       let keyToEvict: string | undefined;
       for (const [k, v] of userDbCache.entries()) {

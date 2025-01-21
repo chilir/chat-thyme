@@ -16,6 +16,7 @@ import {
   uniqueNamesGenerator,
 } from "unique-names-generator";
 import { processUserMessage } from "../../chat";
+import { config } from "../../config";
 import { getOrInitUserDb, releaseUserDb } from "../../db/sqlite";
 import type { ChatIdExistence, OllamaModelOptions } from "../../interfaces";
 import { resumeChatCommandData, startChatCommandData } from "./commands";
@@ -117,7 +118,7 @@ const createNewDiscordThreadAndUserMessageListener = async (
       );
       return;
     }
-    newDiscordThread.setRateLimitPerUser(10);
+    newDiscordThread.setRateLimitPerUser(config.DISCORD_SLOW_MODE_SECONDS);
     discordThread = newDiscordThread;
   } catch (error) {
     const errorMessage =
