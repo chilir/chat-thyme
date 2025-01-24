@@ -1,16 +1,11 @@
 // src/interfaces.ts
 
 import type { Database } from "bun:sqlite";
-import type { Options } from "ollama";
-
-export interface ChatMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
+import type { Message, Options } from "ollama";
 
 export interface OllamaChatPrompt {
   modelName: string;
-  messages: ChatMessage[];
+  messages: Message[];
   options: Partial<Options>;
 }
 

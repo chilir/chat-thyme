@@ -1,9 +1,13 @@
 // src/chat.ts
 
-import type { Ollama, Options } from "ollama";
+import type {
+  Message as ChatMessage,
+  Ollama as OllamaClient,
+  Options as OllamaOptions,
+} from "ollama";
 import { config } from "./config";
 import { getOrInitUserDb, releaseUserDb } from "./db/sqlite";
-import type { ChatMessage, OllamaChatPrompt } from "./interfaces";
+import type { OllamaChatPrompt } from "./interfaces";
 import { chatWithModel } from "./llm-service/ollama";
 
 export const fetchChatHistory = async (
@@ -63,15 +67,15 @@ export const saveChatMessage = async (
 
 export const processUserMessage = async (
   userId: string,
-  ollamaClient: Ollama,
+  ollamaClient: OllamaClient,
   chatIdentifier: string,
-  messageContent: string,
-  messageTimestamp: Date,
-  options: Partial<Options>,
+  discordMessageContent: string,
+  discordMessageTimestamp: Date,
+  options: Partial<OllamaOptions>,
 ): Promise<string> => {
   const currentChatMessages = await fetchChatHistory(userId, chatIdentifier);
 
-  currentChatMessages.push({ role: "user", content: messageContent });
+  currentChatMessages.push({ role: "user", content: discordMessageContent });
 
   const prompt: OllamaChatPrompt = {
     modelName: config.OLLAMA_MODEL,
@@ -91,14 +95,16 @@ export const processUserMessage = async (
     userId,
     chatIdentifier,
     "user",
-    messageContent,
-    messageTimestamp,
+    discordMessageContent,
+    discordMessageTimestamp,
   );
   await saveChatMessage(
     userId,
     chatIdentifier,
     "assistant",
     response.message.content,
+    // NOTE: not sure why this is a string when it's typed as a Date, that's why
+    // this needs to be wrapped in new Date()
     new Date(response.created_at),
   );
 

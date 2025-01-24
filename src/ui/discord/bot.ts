@@ -3,12 +3,12 @@
 import {
   ChannelType,
   type ChatInputCommandInteraction,
-  type Client,
+  type Client as DiscordClient,
   type Message as DiscordMessage,
   type TextChannel,
   type ThreadChannel,
 } from "discord.js";
-import type { Ollama, Options } from "ollama";
+import type { Ollama as OllamaClient, Options as OllamaOptions } from "ollama";
 import {
   adjectives,
   animals,
@@ -24,10 +24,14 @@ import { resumeChatCommandData, startChatCommandData } from "./commands";
 // Keep track of active chat threads
 const activeChatThreads = new Map<
   string,
-  { chatIdentifier: string; userId: string; modelOptions: Partial<Options> }
+  {
+    chatIdentifier: string;
+    userId: string;
+    modelOptions: Partial<OllamaOptions>;
+  }
 >();
 
-const startArchivedThreadEviction = (discordClient: Client) => {
+const startArchivedThreadEviction = (discordClient: DiscordClient) => {
   setInterval(
     async () => {
       for (const channelId of activeChatThreads.keys()) {
@@ -57,8 +61,8 @@ const startArchivedThreadEviction = (discordClient: Client) => {
 };
 
 export const setupDiscordBot = (
-  discordClient: Client,
-  ollamaClient: Ollama,
+  discordClient: DiscordClient,
+  ollamaClient: OllamaClient,
 ) => {
   // Command registration
   discordClient.on("ready", async () => {
@@ -116,7 +120,7 @@ const chatIdentifierExistenceQuery =
 
 const getModelOptions = (
   interaction: ChatInputCommandInteraction,
-): Partial<Options> => {
+): Partial<OllamaOptions> => {
   const temperature = interaction.options.getNumber("temperature") ?? undefined;
   const numCtx = interaction.options.getNumber("num_ctx") ?? undefined;
   const topK = interaction.options.getNumber("top_k") ?? undefined;
@@ -270,9 +274,9 @@ const handleResumeChatCommand = async (
 
 const handleUserMessage = async (
   discordMessage: DiscordMessage,
-  ollamaClient: Ollama,
+  ollamaClient: OllamaClient,
   chatIdentifier: string,
-  modelOptions: Partial<Options>,
+  modelOptions: Partial<OllamaOptions>,
   userId: string,
 ) => {
   if (

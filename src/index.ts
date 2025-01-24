@@ -1,7 +1,7 @@
 // src/index.ts
 
 import { Client, GatewayIntentBits } from "discord.js";
-import { Ollama } from "ollama";
+import { Ollama as OllamaClient } from "ollama";
 import { config } from "./config";
 import { clearUserDbCache } from "./db/sqlite";
 import { setupDiscordBot } from "./ui/discord";
@@ -40,7 +40,7 @@ process.on("unhandledRejection", async (reason, promise) => {
   process.exit(1);
 });
 
-const ollamaClient = new Ollama({
+const ollamaClient = new OllamaClient({
   host: config.OLLAMA_SERVER_URL,
 });
 

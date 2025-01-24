@@ -1,10 +1,10 @@
 // src/llm-service/ollama.ts
 
-import type { ChatResponse, Ollama } from "ollama";
+import type { ChatResponse, Ollama as OllamaClient } from "ollama";
 import type { OllamaChatPrompt } from "../interfaces";
 
 export async function chatWithModel(
-  ollamaClient: Ollama,
+  ollamaClient: OllamaClient,
   prompt: OllamaChatPrompt,
 ): Promise<ChatResponse> {
   try {
