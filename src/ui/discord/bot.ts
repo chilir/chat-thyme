@@ -33,10 +33,19 @@ const activeChatThreads = new Map<
   }
 >();
 
+// Map to store message queues per chatIdentifier
+const chatMessageQueues = new Map<
+  string,
+  {
+    queue: DiscordMessage[];
+    stopSignal: boolean;
+  }
+>();
+
 const startArchivedThreadEviction = (discordClient: DiscordClient) => {
   setInterval(
     async () => {
-      for (const channelId of activeChatThreads.keys()) {
+      for (const [channelId, threadInfo] of activeChatThreads) {
         try {
           const channel = await discordClient.channels.fetch(channelId);
           if (channel?.isThread()) {
@@ -49,6 +58,7 @@ const startArchivedThreadEviction = (discordClient: DiscordClient) => {
             // If the channel is no longer a thread (e.g., deleted), remove it
             // from the map
             activeChatThreads.delete(channelId);
+            chatMessageQueues.delete(threadInfo.chatIdentifier);
           }
         } catch (error) {
           console.warn(
@@ -68,7 +78,7 @@ export const setupDiscordBot = (
 ) => {
   // Command registration
   discordClient.on("ready", async () => {
-    console.log(`Logged in as ${discordClient.user?.tag}!`);
+    console.info(`Logged in as ${discordClient.user?.tag}!`);
     try {
       // Register commands on all the guilds bot is in
       for (const guild of discordClient.guilds.cache.values()) {
@@ -78,7 +88,7 @@ export const setupDiscordBot = (
         await guild.commands.create(startChatCommandData);
         await guild.commands.create(resumeChatCommandData);
       }
-      console.log(
+      console.info(
         "start-chat and resume-chat slash commands registered successfully.",
       );
     } catch (error) {
@@ -124,7 +134,7 @@ const getModelOptions = (
   interaction: ChatInputCommandInteraction,
 ): Partial<OllamaOptions> => {
   const temperature = interaction.options.getNumber("temperature") ?? undefined;
-  const numCtx = interaction.options.getNumber("num_ctx") ?? undefined;
+  const numCtx = interaction.options.getInteger("num_ctx") ?? undefined;
   const topK = interaction.options.getNumber("top_k") ?? undefined;
   const topP = interaction.options.getNumber("top_p") ?? undefined;
   const repeatPenalty =
@@ -157,7 +167,7 @@ const createDiscordThread = async (
     ? `(${chatIdentifier}) ${interaction.options.getString("thread_name")}`
     : `Chat with ${interaction.user.username}: ${chatIdentifier}`;
   const autoArchiveMinutes =
-    interaction.options.getNumber("auto_archive_minutes") ?? 60;
+    interaction.options.getInteger("auto_archive_minutes") ?? 60;
 
   // Define the retryable operation (thread creation logic)
   const operation = async () => {
@@ -194,7 +204,7 @@ const createDiscordThread = async (
       minTimeout: 1000, // Initial delay (1 second)
       maxTimeout: 15000, // Max delay (15 seconds)
       onFailedAttempt: (error) => {
-        console.log(
+        console.warn(
           `Discord thread creation attempt ${error.attemptNumber} failed. \
           There are ${error.retriesLeft} retries left...`,
         );
@@ -225,8 +235,6 @@ const createDiscordThread = async (
 const handleStartChatCommand = async (
   interaction: ChatInputCommandInteraction,
 ) => {
-  await interaction.deferReply();
-
   let userDb: Database;
   try {
     userDb = await getOrInitUserDb(interaction.user.id);
@@ -272,8 +280,6 @@ const handleStartChatCommand = async (
 const handleResumeChatCommand = async (
   interaction: ChatInputCommandInteraction,
 ) => {
-  await interaction.deferReply();
-
   let userDb: Database;
   try {
     userDb = await getOrInitUserDb(interaction.user.id);
@@ -294,8 +300,7 @@ const handleResumeChatCommand = async (
       .get(chatIdentifier) as ChatIdExistence;
   } catch (error) {
     console.error(
-      `Error checking database for ${chatIdentifier} existence with \
-      ${interaction.user.id}:`,
+      `Error checking database for ${chatIdentifier} existence with ${interaction.user.id}:`,
       error,
     );
     await interaction.editReply(
@@ -325,13 +330,81 @@ const handleUserMessage = async (
   modelOptions: Partial<OllamaOptions>,
   userId: string,
 ) => {
-  if (
-    discordMessage.channel.isTextBased() &&
-    "sendTyping" in discordMessage.channel
-  ) {
-    await discordMessage.channel.sendTyping(); // Show typing indicator to the user
+  let messageQueueEntry = chatMessageQueues.get(chatIdentifier);
+  if (!messageQueueEntry) {
+    messageQueueEntry = { queue: [], stopSignal: false };
+    chatMessageQueues.set(chatIdentifier, messageQueueEntry);
+    startQueueWorker(chatIdentifier, ollamaClient, modelOptions, userId);
   }
 
+  messageQueueEntry.queue.push(discordMessage);
+  console.debug(
+    `Enqueued message ${discordMessage.content} for chat ${chatIdentifier}. Queue size: ${messageQueueEntry.queue.length}`,
+  );
+};
+
+const startQueueWorker = (
+  chatIdentifier: string,
+  ollamaClient: OllamaClient,
+  modelOptions: Partial<OllamaOptions>,
+  userId: string,
+) => {
+  let messageQueueEntry = chatMessageQueues.get(chatIdentifier);
+  if (!messageQueueEntry) {
+    console.warn(`Queue not found for chat ${chatIdentifier}, stopping worker`);
+    messageQueueEntry = { queue: [], stopSignal: true };
+  }
+
+  (async () => {
+    while (true) {
+      if (messageQueueEntry.stopSignal) {
+        console.info(
+          `Queue worker for chat ${chatIdentifier} received stop signal and is exiting.`,
+        );
+        return; // Exit worker loop
+      }
+      if (messageQueueEntry.queue.length > 0) {
+        const discordMessage = messageQueueEntry.queue.shift(); // fifo
+        if (!discordMessage) continue; // sanity check
+
+        try {
+          if (
+            discordMessage.channel.isTextBased() &&
+            "sendTyping" in discordMessage.channel
+          ) {
+            await discordMessage.channel.sendTyping(); // Typing indicator
+          }
+
+          await processMessageFromQueue(
+            discordMessage,
+            ollamaClient,
+            chatIdentifier,
+            modelOptions,
+            userId,
+          );
+        } catch (error) {
+          console.error(
+            `Error processing message from queue for chat ${chatIdentifier}:`,
+            error,
+          );
+          discordMessage.reply(
+            `Sorry, I encountered an error while processing your message: ${discordMessage.content}.`,
+          );
+        }
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 100)); // Wait 100ms (adjust as needed)
+      }
+    }
+  })();
+};
+
+const processMessageFromQueue = async (
+  discordMessage: DiscordMessage,
+  ollamaClient: OllamaClient,
+  chatIdentifier: string,
+  modelOptions: Partial<OllamaOptions>,
+  userId: string,
+) => {
   try {
     const response = await processUserMessage(
       userId,
@@ -361,8 +434,7 @@ const handleUserMessage = async (
     console.error("Error during chat:", error);
     const errorMessage = error instanceof Error ? error.message : `${error}`;
     discordMessage.reply(
-      `Sorry, I encountered an error while processing your request: \
-      ${errorMessage}.`,
+      `Sorry, I encountered an error while processing your request: ${errorMessage}.`,
     );
   }
 };
