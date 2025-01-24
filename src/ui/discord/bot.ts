@@ -82,15 +82,24 @@ export const setupDiscordBot = (
     try {
       // Register commands on all the guilds bot is in
       for (const guild of discordClient.guilds.cache.values()) {
-        // First, delete all existing commands
+        console.debug(
+          `Deleting existing commands for guild ${guild.name} (${guild.id})...`,
+        );
         await guild.commands.set([]);
-        // Then register the new commands
+        console.debug(
+          `Creating start-chat command for guild ${guild.name} (${guild.id})...`,
+        );
         await guild.commands.create(startChatCommandData);
+        console.debug(
+          `Creating resume-chat command for guild ${guild.name} (${guild.id})...`,
+        );
         await guild.commands.create(resumeChatCommandData);
       }
       console.info(
         "start-chat and resume-chat slash commands registered successfully.",
       );
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 second delay
+      console.info("Delay finished after command registration. Bot ready.");
     } catch (error) {
       console.error("Error registering slash command:", error);
     }
@@ -101,9 +110,14 @@ export const setupDiscordBot = (
   // Slash command interaction
   discordClient.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
+    console.debug(
+      `Interaction received: ${interaction.commandName}, User: ${interaction.user.tag}, Options: ${JSON.stringify(interaction.options.data)}`,
+    );
     if (interaction.commandName === "start-chat") {
+      console.debug("Handling start-chat command.");
       await handleStartChatCommand(interaction);
     } else if (interaction.commandName === "resume-chat") {
+      console.debug("Handling resume-chat command.");
       await handleResumeChatCommand(interaction);
     }
   });
