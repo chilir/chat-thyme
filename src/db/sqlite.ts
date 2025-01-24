@@ -59,29 +59,58 @@ export const getOrInitUserDb = async (userId: string) => {
   }
 
   // will do nothing if dir already exists
-  await mkdir(path.resolve(config.DB_DIR), { recursive: true });
+  try {
+    await mkdir(path.resolve(config.DB_DIR), { recursive: true });
+  } catch (error) {
+    console.error(
+      `Error creating/resolving database directory ${config.DB_DIR}:`,
+      error,
+    );
+    throw error;
+  }
 
   // Initialize new db object from db file on disk
-  const dbPath = path.resolve(`.sqlite/chat_history_${userId}.db`);
-  console.log(`
-    No existing database found in cache (or TTL expired) for user ${userId}.
-    Initializing new database object from ${dbPath}.
-  `);
-  const db = new Database(dbPath, { create: true });
-  db.run(`
-    CREATE TABLE IF NOT EXISTS chat_messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chat_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      timestamp DATETIME
-    )
-  `);
+  let db: Database;
+  let dbPath: string;
+  try {
+    dbPath = path.resolve(`${config.DB_DIR}/chat_history_${userId}.db`);
+    console.log(`
+      No existing database found in cache (or TTL expired) for user ${userId}.
+      Initializing new database object from ${dbPath}.
+    `);
+    db = new Database(dbPath, { create: true });
+  } catch (error) {
+    const dbPath = path.resolve(`${config.DB_DIR}/chat_history_${userId}.db`);
+    console.error(`Error creating/opening database file at ${dbPath}`, error);
+    throw error;
+  }
+
+  try {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        timestamp DATETIME
+      )
+    `);
+  } catch (error) {
+    console.error(`Error initializing database schema for ${dbPath}:`, error);
+    db.close();
+    throw error;
+  }
 
   // Composite index for `chat_id` and message `id` columns (most used)
-  db.run(
-    "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_id ON chat_messages(chat_id, id)",
-  );
+  try {
+    db.run(
+      "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_id ON chat_messages(chat_id, id)",
+    );
+  } catch (error) {
+    console.error(`Error creating database index for ${dbPath}:`, error);
+    db.close();
+    throw error;
+  }
 
   const addDbToCacheRelease = await userDbCacheMutex.acquire();
   try {
