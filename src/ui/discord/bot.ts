@@ -1,5 +1,6 @@
 // src/ui/discord/bot.ts
 
+import type { Database } from "bun:sqlite";
 import {
   ChannelType,
   type ChatInputCommandInteraction,
@@ -9,6 +10,7 @@ import {
   type ThreadChannel,
 } from "discord.js";
 import type { Ollama as OllamaClient, Options as OllamaOptions } from "ollama";
+import pRetry from "p-retry";
 import {
   adjectives,
   animals,
@@ -49,7 +51,7 @@ const startArchivedThreadEviction = (discordClient: DiscordClient) => {
             activeChatThreads.delete(channelId);
           }
         } catch (error) {
-          console.error(
+          console.warn(
             `Error during archived thread eviction for ${channelId}:`,
             error,
           );
@@ -148,6 +150,8 @@ const createDiscordThread = async (
   chatIdentifier: string,
   newDiscordThreadReason: string,
 ): Promise<void> => {
+  await interaction.deferReply(); // Defer reply at the beginning
+
   // Get user specified Discord thread properties
   const threadName = interaction.options.getString("thread_name")
     ? `(${chatIdentifier}) ${interaction.options.getString("thread_name")}`
@@ -155,47 +159,67 @@ const createDiscordThread = async (
   const autoArchiveMinutes =
     interaction.options.getNumber("auto_archive_minutes") ?? 60;
 
-  // Create a new Discord thread
-  let newDiscordThread: ThreadChannel;
-  try {
-    // TODO: add retry logic and exponential backoff
-    newDiscordThread = (await (
-      interaction.channel as TextChannel
-    )?.threads.create({
-      name: threadName,
-      type: ChannelType.PrivateThread,
-      autoArchiveDuration: autoArchiveMinutes,
-      reason: newDiscordThreadReason,
-    })) as ThreadChannel;
+  // Define the retryable operation (thread creation logic)
+  const operation = async () => {
+    let newDiscordThread: ThreadChannel;
+    try {
+      newDiscordThread = (await (
+        interaction.channel as TextChannel
+      )?.threads.create({
+        name: threadName,
+        type: ChannelType.PrivateThread,
+        autoArchiveDuration: autoArchiveMinutes,
+        reason: newDiscordThreadReason,
+      })) as ThreadChannel;
 
-    if (!newDiscordThread) {
-      await interaction.editReply(
-        "Failed to create Discord thread - no Discord thread channel returned",
-      );
-      return;
+      if (!newDiscordThread) {
+        throw new Error(
+          "Failed to create Discord thread - no Discord thread channel returned",
+        ); // Throw error to trigger retry
+      }
+
+      newDiscordThread.setRateLimitPerUser(config.DISCORD_SLOW_MODE_SECONDS);
+      return newDiscordThread; // Return successful thread object
+    } catch (error) {
+      console.error("Error creating Discord thread (attempting retry):", error);
+      throw error; // Re-throw error to trigger p-retry
     }
+  };
 
-    newDiscordThread.setRateLimitPerUser(config.DISCORD_SLOW_MODE_SECONDS);
+  // retry + exponential backoff for thread creation
+  try {
+    const newDiscordThread = await pRetry(operation, {
+      retries: 3,
+      factor: 2,
+      minTimeout: 1000, // Initial delay (1 second)
+      maxTimeout: 15000, // Max delay (15 seconds)
+      onFailedAttempt: (error) => {
+        console.log(
+          `Discord thread creation attempt ${error.attemptNumber} failed. \
+          There are ${error.retriesLeft} retries left...`,
+        );
+      },
+    });
+
+    // Respond to the interaction after successful thread creation
+    await interaction.editReply(
+      `Started a new chat thread: <#${newDiscordThread.id}>`,
+    );
+
+    activeChatThreads.set(newDiscordThread.id, {
+      chatIdentifier: chatIdentifier,
+      userId: interaction.user.id,
+      modelOptions: getModelOptions(interaction),
+    });
   } catch (error) {
+    // all retry attempts have failed
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error occurred";
     await interaction.editReply(
-      `Error creating Discord thread: ${errorMessage}`,
+      `Error creating Discord thread after multiple retries: ${errorMessage}`,
     );
-    console.error("Error creating Discord thread:", error);
-    return;
+    console.error("Error creating Discord thread after retries failed:", error);
   }
-
-  // Respond to the interaction
-  await interaction.editReply(
-    `Started a new chat thread: <#${newDiscordThread.id}>`,
-  );
-
-  activeChatThreads.set(newDiscordThread.id, {
-    chatIdentifier: chatIdentifier,
-    userId: interaction.user.id,
-    modelOptions: getModelOptions(interaction),
-  });
 };
 
 const handleStartChatCommand = async (
@@ -203,7 +227,16 @@ const handleStartChatCommand = async (
 ) => {
   await interaction.deferReply();
 
-  const userDb = await getOrInitUserDb(interaction.user.id);
+  let userDb: Database;
+  try {
+    userDb = await getOrInitUserDb(interaction.user.id);
+  } catch (error) {
+    console.error(
+      `Error getting/initializing user database for ${interaction.user.id}:`,
+      error,
+    );
+    throw error;
+  }
 
   // Generate a unique chat identifier - regenerate if value already exists in
   // user DB
@@ -241,7 +274,16 @@ const handleResumeChatCommand = async (
 ) => {
   await interaction.deferReply();
 
-  const userDb = await getOrInitUserDb(interaction.user.id);
+  let userDb: Database;
+  try {
+    userDb = await getOrInitUserDb(interaction.user.id);
+  } catch (error) {
+    console.error(
+      `Error getting/initializing user database for ${interaction.user.id}:`,
+      error,
+    );
+    throw error;
+  }
   const chatIdentifier = interaction.options.getString("chat_identifier", true);
 
   let chatIdExists: ChatIdExistence;
@@ -251,7 +293,11 @@ const handleResumeChatCommand = async (
       .query(chatIdentifierExistenceQuery)
       .get(chatIdentifier) as ChatIdExistence;
   } catch (error) {
-    console.error("Error checking chat identifier existence:", error);
+    console.error(
+      `Error checking database for ${chatIdentifier} existence with \
+      ${interaction.user.id}:`,
+      error,
+    );
     await interaction.editReply(
       "An error occurred while checking for existing chat identifiers.",
     );
@@ -301,20 +347,22 @@ const handleUserMessage = async (
       const chunks = response.match(/[\s\S]{1,2000}/g) || [];
       for (const chunk of chunks) {
         await discordMessage.reply(chunk).catch((err) => {
-          console.log("There was an error sending a message chunk", err);
-          throw err; // make sure this still bubbles up
+          console.error("There was an error sending a message chunk", err);
+          throw err;
         });
       }
     } else {
       await discordMessage.reply(response).catch((err) => {
-        console.log("There was an error sending the message", err);
-        throw err; // make sure this still bubbles up
+        console.error("There was an error sending the message", err);
+        throw err;
       });
     }
   } catch (error) {
     console.error("Error during chat:", error);
+    const errorMessage = error instanceof Error ? error.message : `${error}`;
     discordMessage.reply(
-      "Sorry, I encountered an error while processing your request.",
+      `Sorry, I encountered an error while processing your request: \
+      ${errorMessage}.`,
     );
   }
 };
