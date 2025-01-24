@@ -3,13 +3,13 @@
 import { Client, GatewayIntentBits } from "discord.js";
 import { Ollama as OllamaClient } from "ollama";
 import { config } from "./config";
-import { setupSignalHandlers } from "./signalhandlers";
+import { setupSignalHandlers } from "./signal-handlers";
 import { setupDiscordBot } from "./ui/discord";
 
 setupSignalHandlers();
 
 const ollamaClient = new OllamaClient({
-  host: config.OLLAMA_SERVER_URL,
+  host: config.serverUrl,
 });
 
 const discordClient = new Client({
@@ -22,4 +22,4 @@ const discordClient = new Client({
 
 setupDiscordBot(discordClient, ollamaClient);
 
-discordClient.login(config.DISCORD_TOKEN);
+discordClient.login(config.discordBotToken);

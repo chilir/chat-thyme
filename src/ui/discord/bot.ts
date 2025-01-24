@@ -202,7 +202,7 @@ const createDiscordThread = async (
         ); // Throw error to trigger retry
       }
 
-      newDiscordThread.setRateLimitPerUser(config.DISCORD_SLOW_MODE_SECONDS);
+      newDiscordThread.setRateLimitPerUser(config.discordSlowModeInterval);
       return newDiscordThread; // Return successful thread object
     } catch (error) {
       console.error("Error creating Discord thread (attempting retry):", error);

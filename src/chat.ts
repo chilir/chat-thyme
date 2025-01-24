@@ -38,7 +38,7 @@ export const getChatHistoryFromDb = async (
   if (chatHistory.length === 0) {
     chatHistory.push({
       role: "system",
-      content: config.OLLAMA_MODEL_SYSTEM_PROMPT,
+      content: config.systemPrompt,
     });
   }
 
@@ -98,7 +98,7 @@ export const processUserMessage = async (
 
     // could take a while, don't hold userDbCache lock here
     response = await chatWithModel(ollamaClient, {
-      modelName: config.OLLAMA_MODEL,
+      modelName: config.model,
       messages: currentChatMessages,
       options: options,
     });

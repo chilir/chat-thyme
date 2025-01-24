@@ -18,7 +18,7 @@ const backgroundEvictExpiredDbs = async () => {
     const now = Date.now();
     userDbCache.forEach((entry, userId) => {
       if (
-        now - entry.lastAccessed > config.DB_CACHE_TTL_MILLISECONDS &&
+        now - entry.lastAccessed > config.dbConnectionCacheTtl &&
         entry.refCount === 0
       ) {
         console.info(
@@ -37,7 +37,7 @@ const backgroundEvictExpiredDbs = async () => {
 if (!cacheCheckIntervalId) {
   cacheCheckIntervalId = setInterval(
     backgroundEvictExpiredDbs,
-    config.DB_CACHE_CHECK_INTERVAL_MILLISECONDS,
+    config.dbConnectionCacheCheckInterval,
   );
 }
 
@@ -59,10 +59,10 @@ export const getOrInitUserDb = async (userId: string) => {
 
   // will do nothing if dir already exists
   try {
-    await mkdir(path.resolve(config.DB_DIR), { recursive: true });
+    await mkdir(path.resolve(config.dbDir), { recursive: true });
   } catch (error) {
     console.error(
-      `Error creating/resolving database directory ${config.DB_DIR}:`,
+      `Error creating/resolving database directory ${config.dbDir}:`,
       error,
     );
     throw error;
@@ -72,13 +72,13 @@ export const getOrInitUserDb = async (userId: string) => {
   let db: Database;
   let dbPath: string;
   try {
-    dbPath = path.resolve(`${config.DB_DIR}/chat_history_${userId}.db`);
+    dbPath = path.resolve(`${config.dbDir}/chat_history_${userId}.db`);
     console.info(
       `No existing database found in cache (or TTL expired) for user ${userId}.\nInitializing new database object from ${dbPath}.`,
     );
     db = new Database(dbPath, { create: true });
   } catch (error) {
-    const dbPath = path.resolve(`${config.DB_DIR}/chat_history_${userId}.db`);
+    const dbPath = path.resolve(`${config.dbDir}/chat_history_${userId}.db`);
     console.error(`Error creating/opening database file at ${dbPath}`, error);
     throw error;
   }
@@ -115,7 +115,7 @@ export const getOrInitUserDb = async (userId: string) => {
   const addDbToCacheRelease = await userDbCacheMutex.acquire();
   try {
     // Best effort LRU cache eviction
-    if (userDbCache.size >= config.DESIRED_MAX_DB_CACHE_SIZE) {
+    if (userDbCache.size >= config.dbConnectionCacheSize) {
       // Find the least recently used entry with refCount 0
       let keyToEvict: string | undefined;
       for (const [k, v] of userDbCache.entries()) {
