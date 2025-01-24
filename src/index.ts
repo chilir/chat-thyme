@@ -3,42 +3,10 @@
 import { Client, GatewayIntentBits } from "discord.js";
 import { Ollama as OllamaClient } from "ollama";
 import { config } from "./config";
-import { clearUserDbCache } from "./db/sqlite";
+import { setupSignalHandlers } from "./signalhandlers";
 import { setupDiscordBot } from "./ui/discord";
 
-// register explicit cleanup
-process.on("SIGINT", async () => {
-  console.log("SIGINT received. Cleaning up user DB cache...");
-  await clearUserDbCache();
-  console.log("Cleanup complete. Exiting...");
-  process.exit(0);
-});
-process.on("SIGTERM", async () => {
-  console.log("SIGTERM received. Cleaning up user DB cache...");
-  await clearUserDbCache();
-  console.log("Cleanup complete. Exiting...");
-  process.exit(0);
-});
-process.on("SIGQUIT", async () => {
-  console.log("SIGQUIT received. Cleaning up user DB cache...");
-  await clearUserDbCache();
-  console.log("Cleanup complete. Exiting...");
-  process.exit(0);
-});
-process.on("uncaughtException", async (err) => {
-  console.error("Uncaught Exception:", err);
-  console.log("Cleaning up user DB cache...");
-  await clearUserDbCache();
-  console.log("Cleanup complete. Exiting...");
-  process.exit(1);
-});
-process.on("unhandledRejection", async (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  console.log("Cleaning up user DB cache...");
-  await clearUserDbCache();
-  console.log("Cleanup complete. Exiting...");
-  process.exit(1);
-});
+setupSignalHandlers();
 
 const ollamaClient = new OllamaClient({
   host: config.OLLAMA_SERVER_URL,
