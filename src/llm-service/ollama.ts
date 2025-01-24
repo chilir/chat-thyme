@@ -17,6 +17,6 @@ export const chatWithModel = async (
     return response;
   } catch (error) {
     console.error("Error during Ollama interaction:", error);
-    throw new Error("Failed to get response from Ollama");
+    throw error;
   }
 };
