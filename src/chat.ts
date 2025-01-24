@@ -1,13 +1,9 @@
 // src/chat.ts
 
-import type { Ollama } from "ollama";
+import type { Ollama, Options } from "ollama";
 import { config } from "./config";
 import { getOrInitUserDb, releaseUserDb } from "./db/sqlite";
-import type {
-  ChatMessage,
-  OllamaChatPrompt,
-  OllamaModelOptions,
-} from "./interfaces";
+import type { ChatMessage, OllamaChatPrompt } from "./interfaces";
 import { chatWithModel } from "./llm-service/ollama";
 
 export const fetchChatHistory = async (
@@ -49,19 +45,14 @@ export const saveChatMessage = async (
   chatIdentifier: string,
   role: "user" | "assistant",
   content: string,
-  timestamp?: Date,
+  timestamp: Date,
 ): Promise<void> => {
-  const query = timestamp
-    ? "INSERT INTO chat_messages (chat_id, role, content, timestamp) VALUES (?, ?, ?, ?)"
-    : "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)";
-  const params = timestamp
-    ? [chatIdentifier, role, content, timestamp.toISOString()]
-    : [chatIdentifier, role, content];
-
   const userDb = await getOrInitUserDb(userId);
-
   try {
-    userDb.run(query, params);
+    userDb.run(
+      "INSERT INTO chat_messages (chat_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
+      [chatIdentifier, role, content, timestamp.toISOString()],
+    );
   } catch (error) {
     console.error("Error saving chat message:", error);
     throw error;
@@ -76,7 +67,7 @@ export const processUserMessage = async (
   chatIdentifier: string,
   messageContent: string,
   messageTimestamp: Date,
-  options: OllamaModelOptions,
+  options: Partial<Options>,
 ): Promise<string> => {
   const currentChatMessages = await fetchChatHistory(userId, chatIdentifier);
 
@@ -91,7 +82,10 @@ export const processUserMessage = async (
   // could take a while, don't hold userDbCache lock here
   const response = await chatWithModel(ollamaClient, prompt);
 
-  currentChatMessages.push({ role: "assistant", content: response });
+  currentChatMessages.push({
+    role: "assistant",
+    content: response.message.content,
+  });
 
   await saveChatMessage(
     userId,
@@ -100,7 +94,13 @@ export const processUserMessage = async (
     messageContent,
     messageTimestamp,
   );
-  await saveChatMessage(userId, chatIdentifier, "assistant", response);
+  await saveChatMessage(
+    userId,
+    chatIdentifier,
+    "assistant",
+    response.message.content,
+    new Date(response.created_at),
+  );
 
-  return response;
+  return response.message.content;
 };

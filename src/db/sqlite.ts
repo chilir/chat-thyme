@@ -74,13 +74,13 @@ export const getOrInitUserDb = async (userId: string) => {
       chat_id TEXT NOT NULL,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+      timestamp DATETIME
     )
   `);
 
-  // Composite index for `chat_id` and `timestamp` columns (most used)
+  // Composite index for `chat_id` and message `id` columns (most used)
   db.run(
-    "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_timestamp ON chat_messages(chat_id, timestamp)",
+    "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_id ON chat_messages(chat_id, id)",
   );
 
   const addDbToCacheRelease = await userDbCacheMutex.acquire();
