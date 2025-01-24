@@ -15,6 +15,15 @@ export const startChatCommandData = new SlashCommandBuilder()
   )
   .addNumberOption((option) =>
     option
+      .setName("num_ctx")
+      .setDescription(
+        "Sets the size of the context window used to generate the next token",
+      )
+      .setRequired(false)
+      .setMinValue(1),
+  )
+  .addNumberOption((option) =>
+    option
       .setName("top_k")
       .setDescription("The top_k of the model (0-100)")
       .setRequired(false)
@@ -52,15 +61,6 @@ export const startChatCommandData = new SlashCommandBuilder()
       .setRequired(false)
       .setMinValue(0)
       .setMaxValue(2),
-  )
-  .addNumberOption((option) =>
-    option
-      .setName("num_ctx")
-      .setDescription(
-        "Sets the size of the context window used to generate the next token",
-      )
-      .setRequired(false)
-      .setMinValue(1),
   )
   .addStringOption((option) =>
     option
@@ -97,6 +97,15 @@ export const resumeChatCommandData = new SlashCommandBuilder()
   )
   .addNumberOption((option) =>
     option
+      .setName("num_ctx")
+      .setDescription(
+        "Sets the size of the context window used to generate the next token",
+      )
+      .setRequired(false)
+      .setMinValue(1),
+  )
+  .addNumberOption((option) =>
+    option
       .setName("top_k")
       .setDescription("The top_k of the model (0-100)")
       .setRequired(false)
@@ -134,15 +143,6 @@ export const resumeChatCommandData = new SlashCommandBuilder()
       .setRequired(false)
       .setMinValue(0)
       .setMaxValue(2),
-  )
-  .addNumberOption((option) =>
-    option
-      .setName("num_ctx")
-      .setDescription(
-        "Sets the size of the context window used to generate the next token",
-      )
-      .setRequired(false)
-      .setMinValue(1),
   )
   .addStringOption((option) =>
     option

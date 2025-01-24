@@ -4,7 +4,7 @@ import {
   ChannelType,
   type ChatInputCommandInteraction,
   type Client,
-  type Message,
+  type Message as DiscordMessage,
   type TextChannel,
   type ThreadChannel,
 } from "discord.js";
@@ -86,21 +86,21 @@ export const setupDiscordBot = (
   discordClient.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     if (interaction.commandName === "start-chat") {
-      await handleStartChatCommand(interaction, discordClient, ollamaClient);
+      await handleStartChatCommand(interaction);
     } else if (interaction.commandName === "resume-chat") {
-      await handleResumeChatCommand(interaction, discordClient, ollamaClient);
+      await handleResumeChatCommand(interaction);
     }
   });
 
   // Single message listener for all active chat threads started by slash
   // commands
-  discordClient.on("messageCreate", async (message) => {
-    if (message.author.bot) return; // Ignore bot messages
-    const chatThreadInfo = activeChatThreads.get(message.channelId);
+  discordClient.on("messageCreate", async (discordMessage) => {
+    if (discordMessage.author.bot) return; // Ignore bot messages
+    const chatThreadInfo = activeChatThreads.get(discordMessage.channelId);
     if (chatThreadInfo) {
-      if (message.author.id === chatThreadInfo.userId) {
+      if (discordMessage.author.id === chatThreadInfo.userId) {
         await handleUserMessage(
-          message,
+          discordMessage,
           ollamaClient,
           chatThreadInfo.chatIdentifier,
           chatThreadInfo.modelOptions,
@@ -118,6 +118,7 @@ const getModelOptions = (
   interaction: ChatInputCommandInteraction,
 ): Partial<Options> => {
   const temperature = interaction.options.getNumber("temperature") ?? undefined;
+  const numCtx = interaction.options.getNumber("num_ctx") ?? undefined;
   const topK = interaction.options.getNumber("top_k") ?? undefined;
   const topP = interaction.options.getNumber("top_p") ?? undefined;
   const repeatPenalty =
@@ -126,7 +127,6 @@ const getModelOptions = (
     interaction.options.getNumber("frequency_penalty") ?? undefined;
   const presencePenalty =
     interaction.options.getNumber("presence_penalty") ?? undefined;
-  const numCtx = interaction.options.getNumber("num_ctx") ?? undefined;
 
   return {
     temperature: temperature,
@@ -196,8 +196,6 @@ const createDiscordThread = async (
 
 const handleStartChatCommand = async (
   interaction: ChatInputCommandInteraction,
-  discordClient: Client,
-  ollamaClient: Ollama,
 ) => {
   await interaction.deferReply();
 
@@ -236,8 +234,6 @@ const handleStartChatCommand = async (
 
 const handleResumeChatCommand = async (
   interaction: ChatInputCommandInteraction,
-  discordClient: Client,
-  ollamaClient: Ollama,
 ) => {
   await interaction.deferReply();
 
@@ -273,14 +269,17 @@ const handleResumeChatCommand = async (
 };
 
 const handleUserMessage = async (
-  message: Message,
+  discordMessage: DiscordMessage,
   ollamaClient: Ollama,
   chatIdentifier: string,
   modelOptions: Partial<Options>,
   userId: string,
 ) => {
-  if (message.channel.isTextBased() && "sendTyping" in message.channel) {
-    await message.channel.sendTyping(); // Show typing indicator to the user
+  if (
+    discordMessage.channel.isTextBased() &&
+    "sendTyping" in discordMessage.channel
+  ) {
+    await discordMessage.channel.sendTyping(); // Show typing indicator to the user
   }
 
   try {
@@ -288,8 +287,8 @@ const handleUserMessage = async (
       userId,
       ollamaClient,
       chatIdentifier,
-      message.content,
-      message.createdAt,
+      discordMessage.content,
+      discordMessage.createdAt,
       modelOptions,
     );
 
@@ -297,18 +296,20 @@ const handleUserMessage = async (
     if (response.length > 2000) {
       const chunks = response.match(/[\s\S]{1,2000}/g) || [];
       for (const chunk of chunks) {
-        await message.reply(chunk).catch((err) => {
+        await discordMessage.reply(chunk).catch((err) => {
           console.log("There was an error sending a message chunk", err);
+          throw err; // make sure this still bubbles up
         });
       }
     } else {
-      await message.reply(response).catch((err) => {
+      await discordMessage.reply(response).catch((err) => {
         console.log("There was an error sending the message", err);
+        throw err; // make sure this still bubbles up
       });
     }
   } catch (error) {
     console.error("Error during chat:", error);
-    message.reply(
+    discordMessage.reply(
       "Sorry, I encountered an error while processing your request.",
     );
   }
