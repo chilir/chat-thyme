@@ -8,7 +8,7 @@ import {
   type TextChannel,
   type ThreadChannel,
 } from "discord.js";
-import type { Ollama } from "ollama";
+import type { Ollama, Options } from "ollama";
 import {
   adjectives,
   animals,
@@ -18,13 +18,13 @@ import {
 import { processUserMessage } from "../../chat";
 import { config } from "../../config";
 import { getOrInitUserDb, releaseUserDb } from "../../db/sqlite";
-import type { ChatIdExistence, OllamaModelOptions } from "../../interfaces";
+import type { ChatIdExistence } from "../../interfaces";
 import { resumeChatCommandData, startChatCommandData } from "./commands";
 
 // Keep track of active chat threads
 const activeChatThreads = new Map<
   string,
-  { chatIdentifier: string; userId: string; modelOptions: OllamaModelOptions }
+  { chatIdentifier: string; userId: string; modelOptions: Partial<Options> }
 >();
 
 const startArchivedThreadEviction = (discordClient: Client) => {
@@ -116,7 +116,7 @@ const chatIdentifierExistenceQuery =
 
 const getModelOptions = (
   interaction: ChatInputCommandInteraction,
-): OllamaModelOptions => {
+): Partial<Options> => {
   const temperature = interaction.options.getNumber("temperature") ?? undefined;
   const topK = interaction.options.getNumber("top_k") ?? undefined;
   const topP = interaction.options.getNumber("top_p") ?? undefined;
@@ -130,12 +130,12 @@ const getModelOptions = (
 
   return {
     temperature: temperature,
-    topK: topK,
-    topP: topP,
-    repeatPenalty: repeatPenalty,
-    frequencyPenalty: frequencyPenalty,
-    presencePenalty: presencePenalty,
-    numCtx: numCtx,
+    top_k: topK,
+    top_p: topP,
+    repeat_penalty: repeatPenalty,
+    frequency_penalty: frequencyPenalty,
+    presence_penalty: presencePenalty,
+    num_ctx: numCtx,
   };
 };
 
@@ -276,7 +276,7 @@ const handleUserMessage = async (
   message: Message,
   ollamaClient: Ollama,
   chatIdentifier: string,
-  modelOptions: OllamaModelOptions,
+  modelOptions: Partial<Options>,
   userId: string,
 ) => {
   if (message.channel.isTextBased() && "sendTyping" in message.channel) {
@@ -293,9 +293,19 @@ const handleUserMessage = async (
       modelOptions,
     );
 
-    message.reply(response).catch((err) => {
-      console.log("There was an error sending the message", err);
-    });
+    // Discord has a message limit of 2000
+    if (response.length > 2000) {
+      const chunks = response.match(/[\s\S]{1,2000}/g) || [];
+      for (const chunk of chunks) {
+        await message.reply(chunk).catch((err) => {
+          console.log("There was an error sending a message chunk", err);
+        });
+      }
+    } else {
+      await message.reply(response).catch((err) => {
+        console.log("There was an error sending the message", err);
+      });
+    }
   } catch (error) {
     console.error("Error during chat:", error);
     message.reply(
