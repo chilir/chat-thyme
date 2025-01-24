@@ -21,10 +21,10 @@ const backgroundEvictExpiredDbs = async () => {
         now - entry.lastAccessed > config.DB_CACHE_TTL_MILLISECONDS &&
         entry.refCount === 0
       ) {
-        console.log(`
-          TTL expired and no active references for user ${userId}.
-          Closing database.
-        `);
+        console.log(
+          `TTL expired and no active references for user ${userId}.
+          Closing database.`,
+        );
         entry.dbObj.close();
         userDbCache.delete(userId);
       }
@@ -103,9 +103,11 @@ export const getOrInitUserDb = async (userId: string) => {
 
   // Composite index for `chat_id` and message `id` columns (most used)
   try {
-    db.run(
-      "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_id ON chat_messages(chat_id, id)",
-    );
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_id ON chat_messages(
+        chat_id, id
+      )
+    `);
   } catch (error) {
     console.error(`Error creating database index for ${dbPath}:`, error);
     db.close();
