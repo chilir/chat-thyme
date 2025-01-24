@@ -21,7 +21,7 @@ const backgroundEvictExpiredDbs = async () => {
         now - entry.lastAccessed > config.DB_CACHE_TTL_MILLISECONDS &&
         entry.refCount === 0
       ) {
-        console.log(
+        console.info(
           `TTL expired and no active references for user ${userId}. Closing database.`,
         );
         entry.dbObj.close();
@@ -73,7 +73,7 @@ export const getOrInitUserDb = async (userId: string) => {
   let dbPath: string;
   try {
     dbPath = path.resolve(`${config.DB_DIR}/chat_history_${userId}.db`);
-    console.log(
+    console.info(
       `No existing database found in cache (or TTL expired) for user ${userId}.\nInitializing new database object from ${dbPath}.`,
     );
     db = new Database(dbPath, { create: true });
@@ -127,7 +127,7 @@ export const getOrInitUserDb = async (userId: string) => {
 
       if (keyToEvict) {
         const entryToEvict = userDbCache.get(keyToEvict) as DbCacheEntry;
-        console.log(
+        console.info(
           `Cache full. Evicting database connection for user ${keyToEvict}.`,
         );
         entryToEvict.dbObj.close();
@@ -164,7 +164,7 @@ export const releaseUserDb = async (userId: string) => {
 export const clearUserDbCache = async () => {
   const release = await userDbCacheMutex.acquire();
   try {
-    console.log(
+    console.info(
       "Clearing all database connections and stopping cache maintenance.",
     );
     for (const entry of userDbCache.values()) {
