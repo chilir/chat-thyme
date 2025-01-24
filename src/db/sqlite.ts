@@ -22,7 +22,7 @@ const backgroundEvictExpiredDbs = async () => {
         entry.refCount === 0
       ) {
         console.log(
-          `TTL expired and no active references for user ${userId}.
+          `TTL expired and no active references for user ${userId}. \
           Closing database.`,
         );
         entry.dbObj.close();
@@ -74,10 +74,10 @@ export const getOrInitUserDb = async (userId: string) => {
   let dbPath: string;
   try {
     dbPath = path.resolve(`${config.DB_DIR}/chat_history_${userId}.db`);
-    console.log(`
-      No existing database found in cache (or TTL expired) for user ${userId}.
-      Initializing new database object from ${dbPath}.
-    `);
+    console.log(
+      `No existing database found in cache (or TTL expired) for user ${userId}. \
+      Initializing new database object from ${dbPath}.`,
+    );
     db = new Database(dbPath, { create: true });
   } catch (error) {
     const dbPath = path.resolve(`${config.DB_DIR}/chat_history_${userId}.db`);
