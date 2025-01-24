@@ -1,36 +1,37 @@
 // src/chat.ts
 
+import type { Database } from "bun:sqlite";
 import type {
   Message as ChatMessage,
+  ChatResponse,
   Ollama as OllamaClient,
   Options as OllamaOptions,
 } from "ollama";
 import { config } from "./config";
 import { getOrInitUserDb, releaseUserDb } from "./db/sqlite";
-import type { OllamaChatPrompt } from "./interfaces";
 import { chatWithModel } from "./llm-service/ollama";
 
-export const fetchChatHistory = async (
+export const getChatHistoryFromDb = async (
+  userDb: Database,
   userId: string,
   chatIdentifier: string,
 ): Promise<ChatMessage[]> => {
-  const userDb = await getOrInitUserDb(userId);
-
   let chatHistory: ChatMessage[];
   try {
     chatHistory = userDb
       .query(`
       SELECT role, content
       FROM chat_messages
-      WHERE chat_id = '${chatIdentifier}'
+      WHERE chat_id = ?
       ORDER BY timestamp ASC
     `)
-      .all() as ChatMessage[];
+      .all(chatIdentifier) as ChatMessage[];
   } catch (error) {
-    console.error("Error fetching chat history:", error);
+    console.error(
+      `Error getting chat history from database for ${userId} in chat ${chatIdentifier}:`,
+      error,
+    );
     throw error;
-  } finally {
-    await releaseUserDb(userId);
   }
 
   // beginning of chat - set the system prompt
@@ -44,24 +45,25 @@ export const fetchChatHistory = async (
   return chatHistory;
 };
 
-export const saveChatMessage = async (
+export const saveChatMessageToDb = async (
+  userDb: Database,
   userId: string,
   chatIdentifier: string,
   role: "user" | "assistant",
   content: string,
   timestamp: Date,
 ): Promise<void> => {
-  const userDb = await getOrInitUserDb(userId);
   try {
     userDb.run(
       "INSERT INTO chat_messages (chat_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
       [chatIdentifier, role, content, timestamp.toISOString()],
     );
   } catch (error) {
-    console.error("Error saving chat message:", error);
+    console.error(
+      `Error saving chat message to database for ${userId} in chat ${chatIdentifier}:`,
+      error,
+    );
     throw error;
-  } finally {
-    await releaseUserDb(userId);
   }
 };
 
@@ -73,40 +75,63 @@ export const processUserMessage = async (
   discordMessageTimestamp: Date,
   options: Partial<OllamaOptions>,
 ): Promise<string> => {
-  const currentChatMessages = await fetchChatHistory(userId, chatIdentifier);
+  let userDb: Database;
+  try {
+    userDb = await getOrInitUserDb(userId);
+  } catch (error) {
+    console.error(
+      `Error getting/initializing user database for ${userId}:`,
+      error,
+    );
+    throw error;
+  }
 
-  currentChatMessages.push({ role: "user", content: discordMessageContent });
+  let response: ChatResponse;
+  try {
+    const currentChatMessages = await getChatHistoryFromDb(
+      userDb,
+      userId,
+      chatIdentifier,
+    );
 
-  const prompt: OllamaChatPrompt = {
-    modelName: config.OLLAMA_MODEL,
-    messages: currentChatMessages,
-    options: options,
-  };
+    currentChatMessages.push({ role: "user", content: discordMessageContent });
 
-  // could take a while, don't hold userDbCache lock here
-  const response = await chatWithModel(ollamaClient, prompt);
+    // could take a while, don't hold userDbCache lock here
+    response = await chatWithModel(ollamaClient, {
+      modelName: config.OLLAMA_MODEL,
+      messages: currentChatMessages,
+      options: options,
+    });
 
-  currentChatMessages.push({
-    role: "assistant",
-    content: response.message.content,
-  });
+    currentChatMessages.push({
+      role: "assistant",
+      content: response.message.content,
+    });
 
-  await saveChatMessage(
-    userId,
-    chatIdentifier,
-    "user",
-    discordMessageContent,
-    discordMessageTimestamp,
-  );
-  await saveChatMessage(
-    userId,
-    chatIdentifier,
-    "assistant",
-    response.message.content,
-    // NOTE: not sure why this is a string when it's typed as a Date, that's why
-    // this needs to be wrapped in new Date()
-    new Date(response.created_at),
-  );
-
+    await saveChatMessageToDb(
+      userDb,
+      userId,
+      chatIdentifier,
+      "user",
+      discordMessageContent,
+      discordMessageTimestamp,
+    );
+    await saveChatMessageToDb(
+      userDb,
+      userId,
+      chatIdentifier,
+      "assistant",
+      response.message.content,
+      new Date(response.created_at), // NOTE: this is a string, needs to be wrapped in new Date()
+    );
+  } catch (error) {
+    console.error(
+      `Error processing user message for ${userId} in chat ${chatIdentifier}:`,
+      error,
+    );
+    throw error;
+  } finally {
+    await releaseUserDb(userId);
+  }
   return response.message.content;
 };
