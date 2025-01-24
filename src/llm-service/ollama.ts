@@ -3,10 +3,10 @@
 import type { ChatResponse, Ollama as OllamaClient } from "ollama";
 import type { OllamaChatPrompt } from "../interfaces";
 
-export async function chatWithModel(
+export const chatWithModel = async (
   ollamaClient: OllamaClient,
   prompt: OllamaChatPrompt,
-): Promise<ChatResponse> {
+): Promise<ChatResponse> => {
   try {
     const response = await ollamaClient.chat({
       model: prompt.modelName,
@@ -19,4 +19,4 @@ export async function chatWithModel(
     console.error("Error during Ollama interaction:", error);
     throw new Error("Failed to get response from Ollama");
   }
-}
+};
