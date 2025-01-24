@@ -13,7 +13,7 @@ export const startChatCommandData = new SlashCommandBuilder()
       .setMinValue(0)
       .setMaxValue(2),
   )
-  .addNumberOption((option) =>
+  .addIntegerOption((option) =>
     option
       .setName("num_ctx")
       .setDescription(
@@ -95,7 +95,7 @@ export const resumeChatCommandData = new SlashCommandBuilder()
       .setMinValue(0)
       .setMaxValue(2),
   )
-  .addNumberOption((option) =>
+  .addIntegerOption((option) =>
     option
       .setName("num_ctx")
       .setDescription(
