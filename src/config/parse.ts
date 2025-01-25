@@ -20,7 +20,8 @@ import { type Config, configSchema, defaultAppConfig } from "./schema";
  *   - dbConnectionCacheTtl: TTL for database cache entries in milliseconds
  *   - dbConnectionCacheCheckInterval: Interval to check expired cache entries
  *     in milliseconds
- *   - discordSlowModeInterval: Slow mode interval for Discord messages in seconds
+ *   - discordSlowModeInterval: Slow mode interval for Discord messages in
+ *     seconds
  */
 const loadFromArgs = () => {
   const argv = yargs(hideBin(process.argv))
