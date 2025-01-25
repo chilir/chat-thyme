@@ -1,3 +1,6 @@
 //src/config/index.ts
 
-export { config } from "./config";
+import { parseConfig } from "./parse";
+
+export { defaultAppConfig } from "./schema";
+export const config = parseConfig();
