@@ -9,7 +9,8 @@ import { type Config, configSchema, defaultAppConfig } from "./schema";
 /**
  * Parses command line arguments using yargs to configure application settings.
  *
- * @returns {Object} An object containing parsed command line arguments with the following properties:
+ * @returns {Object} An object containing parsed command line arguments with the
+ * following properties:
  *   - config: Path to YAML configuration file
  *   - model: Model name to use
  *   - serverUrl: URL of the model server
@@ -17,7 +18,8 @@ import { type Config, configSchema, defaultAppConfig } from "./schema";
  *   - dbDir: Directory for SQLite database files
  *   - dbConnectionCacheSize: Maximum database connection cache size
  *   - dbConnectionCacheTtl: TTL for database cache entries in milliseconds
- *   - dbConnectionCacheCheckInterval: Interval to check expired cache entries in milliseconds
+ *   - dbConnectionCacheCheckInterval: Interval to check expired cache entries
+ *     in milliseconds
  *   - discordSlowModeInterval: Slow mode interval for Discord messages in seconds
  */
 const loadFromArgs = () => {
@@ -37,47 +39,60 @@ const loadFromArgs = () => {
     .option("server-url", {
       alias: "s",
       type: "string",
-      description: `The URL of the model server (optional, default: "${defaultAppConfig.serverUrl}")`,
+      description: `The URL of the model server (optional, default: \
+"${defaultAppConfig.serverUrl}")`,
     })
     .option("system-prompt", {
       alias: "p",
       type: "string",
-      description: `The system prompt for the language model (optional, default: "${defaultAppConfig.systemPrompt}")`,
+      description: `The system prompt for the language model (optional, \
+default: "${defaultAppConfig.systemPrompt}")`,
     })
     .option("db-dir", {
       alias: "o",
       type: "string",
-      description: `The directory to store SQLite database files (optional, default: "${defaultAppConfig.dbDir}")`,
+      description: `The directory to store SQLite database files (optional, \
+default: "${defaultAppConfig.dbDir}")`,
     })
     .option("db-connection-cache-size", {
       type: "number",
-      description: `The maximum size of the database connection cache (optional, default: ${defaultAppConfig.dbConnectionCacheSize})`,
+      description: `The maximum size of the database connection cache \
+(optional, default: ${defaultAppConfig.dbConnectionCacheSize})`,
     })
     .option("db-connection-cache-ttl", {
       type: "number",
-      description: `The time-to-live (TTL) in milliseconds for database cache entries (optional, default: ${defaultAppConfig.dbConnectionCacheTtl})`,
+      description: `The time-to-live (TTL) in milliseconds for database cache \
+entries (optional, default: ${defaultAppConfig.dbConnectionCacheTtl})`,
     })
     .option("db-connection-cache-check-interval", {
       type: "number",
-      description: `The interval in milliseconds to check for expired database cache entries (optional, default: ${defaultAppConfig.dbConnectionCacheCheckInterval})`,
+      description: `The interval in milliseconds to check for expired database \
+cache entries (optional, default: \
+${defaultAppConfig.dbConnectionCacheCheckInterval})`,
     })
     .option("discord-slow-mode-interval", {
       type: "number",
-      description: `The slow mode interval in seconds for Discord user messages (optional, default: ${defaultAppConfig.discordSlowModeInterval})`,
-    });
+      description: `The slow mode interval in seconds for Discord user \
+messages (optional, default: ${defaultAppConfig.discordSlowModeInterval})`,
+    })
+    .wrap(yargs().terminalWidth());
 
   return argv.parseSync();
 };
 
 /**
- * Loads configuration from a YAML file specified in parsed command line arguments.
+ * Loads configuration from a YAML file specified in parsed command line
+ * arguments.
  *
- * @param parsedArgs - The parsed command line arguments containing the config file path
- * @returns A partial configuration object loaded from the YAML file, or an empty object if loading fails
+ * @param parsedArgs - The parsed command line arguments containing the config
+ * file path
+ * @returns A partial configuration object loaded from the YAML file, or an
+ * empty object if loading fails
  *
  * @remarks
  * - If no config file path is provided, returns an empty object
- * - If the file cannot be read or parsed, logs a warning and returns an empty object
+ * - If the file cannot be read or parsed, logs a warning and returns an empty
+ *   object
  * - Successfully loading the config file will log an info message
  */
 const loadFromConfigFile = (parsedArgs: ReturnType<typeof loadFromArgs>) => {
@@ -96,7 +111,8 @@ const loadFromConfigFile = (parsedArgs: ReturnType<typeof loadFromArgs>) => {
 };
 
 /**
- * Parses and validates configuration settings from multiple sources with the following priority:
+ * Parses and validates configuration settings from multiple sources with the
+ * following priority:
  * 1. Command line arguments
  * 2. Environment variables
  * 3. .env file
