@@ -11,7 +11,6 @@ import { defaultAppConfig } from "../../src/config/schema";
 describe("Configuration Parsing and Loading", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
-    vi.stubEnv("DISCORD_BOT_TOKEN", "test_token");
   });
 
   it("should load default configuration", () => {
@@ -182,39 +181,38 @@ discordSlowModeInterval: 40
       "http://cli-server:6000",
     ];
 
-    vi.stubEnv("CHAT_THYME_MODEL", "env_model_value"); // .env and actual env var
+    vi.stubEnv("CHAT_THYME_MODEL", "env_model_value");
     vi.stubEnv("MODEL_SERVER_URL", "http://env-server-value:5000"); // .env and actual env var
     vi.stubEnv("MODEL_SYSTEM_PROMPT", "Environment system prompt value"); // actual env var only (simulating .env not set)
-    // vi.stubEnv("DB_DIR", "./env_db_value"); // actual env var only (simulating .env not set)
+    vi.stubEnv("DB_DIR", "./env_db_value"); // actual env var only (simulating .env not set)
     vi.stubEnv("DESIRED_MAX_DB_CONNECTION_CACHE_SIZE", "200"); // .env only (simulating actual env var not set)
     vi.stubEnv("DB_CONNECTION_CACHE_TTL_MILLISECONDS", "7200000"); // .env only (simulating actual env var not set)
     vi.stubEnv("DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS", "1200000"); // actual env var - no .env
     vi.stubEnv("DISCORD_SLOW_MODE_SECONDS", "20"); // actual env var - no .env
+    vi.stubEnv("DISCORD_BOT_TOKEN", "stubbed_token");
 
-    console.log(`asdf ${process.env.DB_DIR}`);
     const config = parseConfig();
-    expect(config.discordBotToken).toBe("test_token"); // From beforeEach (env var)
-    expect(config.model).toBe("cli_model_value"); // CLI Arg (highest)
-    expect(config.serverUrl).toBe("http://cli-server:6000"); // CLI Arg (from previous test, still highest if set)
-    expect(config.systemPrompt).toBe("Environment system prompt value"); // Env var (overrides YAML, no CLI)
-    expect(config.dbDir).toBe("./test_db_from_env_test"); // Env var (overrides YAML, no CLI)
-    expect(config.dbConnectionCacheSize).toBe(200); // .env var (overrides YAML, no CLI/Env Var)
-    expect(config.dbConnectionCacheTtl).toBe(7200000); // .env var (overrides YAML, no CLI/Env Var)
-    expect(config.dbConnectionCacheCheckInterval).toBe(1200000); // Env var (overrides YAML, no CLI)
-    expect(config.discordSlowModeInterval).toBe(20); // Env var (overrides YAML, no CLI)
-
-    // For values not overridden by CLI, Env vars, or .env, defaults should apply
-    expect(config.dbDir).not.toBe(defaultAppConfig.dbDir); // Assert some value is NOT default to ensure overrides worked
+    expect(config.discordBotToken).toBe("stubbed_token");
+    expect(config.model).toBe("cli_model_value");
+    expect(config.serverUrl).toBe("http://cli-server:6000");
+    expect(config.systemPrompt).toBe("Environment system prompt value");
+    expect(config.dbDir).toBe("./env_db_value");
+    expect(config.dbConnectionCacheSize).toBe(200);
+    expect(config.dbConnectionCacheTtl).toBe(7200000);
+    expect(config.dbConnectionCacheCheckInterval).toBe(1200000);
+    expect(config.discordSlowModeInterval).toBe(20);
+    expect(config.dbDir).not.toBe(defaultAppConfig.dbDir);
     expect(config.dbConnectionCacheCheckInterval).not.toBe(
       defaultAppConfig.dbConnectionCacheCheckInterval,
-    ); // Assert some value is NOT default to ensure overrides worked
+    ); // Assert some values are NOT default to ensure overrides worked
 
     process.argv = originalArgv;
     fs.unlinkSync(configFilePath);
   });
 
   it("should throw an error if Discord bot token is missing", () => {
-    vi.unstubAllEnvs();
+    vi.stubEnv("DISCORD_BOT_TOKEN", undefined);
+    vi.stubEnv("CHAT_THYME_MODEL", "test_model");
 
     expect(parseConfig).toThrowError(ZodError);
     try {
