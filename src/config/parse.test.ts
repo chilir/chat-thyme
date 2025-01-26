@@ -1,21 +1,22 @@
-// tests/config/parse.test.ts
-
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, beforeEach } from "bun:test";
 import { ZodError } from "zod";
-import { parseConfig } from "../../src/config/parse";
-import { defaultAppConfig } from "../../src/config/schema";
+import { parseConfig } from "./parse";
+import { defaultAppConfig } from "./schema";
 
 describe("Configuration Parsing and Loading", () => {
+  const originalEnv = { ...process.env };
+
   beforeEach(() => {
-    vi.unstubAllEnvs();
+    // Reset env vars before each test
+    process.env = { ...originalEnv };
   });
 
   it("should load default configuration", () => {
-    vi.stubEnv("CHAT_THYME_MODEL", "test_model");
-    vi.stubEnv("DB_DIR", undefined);
+    process.env.CHAT_THYME_MODEL = "test_model";
+    process.env.DB_DIR = undefined;
 
     const config = parseConfig();
     expect(config.discordBotToken).toBe("test_token");
@@ -38,14 +39,16 @@ describe("Configuration Parsing and Loading", () => {
   });
 
   it("should override default config with environment variables", () => {
-    vi.stubEnv("CHAT_THYME_MODEL", "env_model");
-    vi.stubEnv("MODEL_SERVER_URL", "http://env-server:5000");
-    vi.stubEnv("MODEL_SYSTEM_PROMPT", "Environment system prompt");
-    vi.stubEnv("DB_DIR", "./env_db");
-    vi.stubEnv("DESIRED_MAX_DB_CONNECTION_CACHE_SIZE", "200");
-    vi.stubEnv("DB_CONNECTION_CACHE_TTL_MILLISECONDS", "7200000");
-    vi.stubEnv("DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS", "1200000");
-    vi.stubEnv("DISCORD_SLOW_MODE_SECONDS", "20");
+    Object.assign(process.env, {
+      CHAT_THYME_MODEL: "env_model",
+      MODEL_SERVER_URL: "http://env-server:5000",
+      MODEL_SYSTEM_PROMPT: "Environment system prompt",
+      DB_DIR: "./env_db",
+      DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
+      DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
+      DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS: "1200000",
+      DISCORD_SLOW_MODE_SECONDS: "20",
+    });
 
     const config = parseConfig();
     expect(config.discordBotToken).toBe("test_token");
@@ -62,34 +65,27 @@ describe("Configuration Parsing and Loading", () => {
   it("should override default and env config with command line arguments", () => {
     const originalArgv = process.argv;
     process.argv = [
-      ...originalArgv.slice(0, 2), // runtime executable and script path
-      "--model",
-      "cli_model",
-      "--server-url",
-      "http://cli-server:6000",
-      "--system-prompt",
-      "CLI system prompt",
-      "--db-dir",
-      "./cli_db",
-      "--db-connection-cache-size",
-      "300",
-      "--db-connection-cache-ttl",
-      "10800000",
-      "--db-connection-cache-check-interval",
-      "1800000",
-      "--discord-slow-mode-interval",
-      "30",
+      ...originalArgv.slice(0, 2),
+      "--model", "cli_model",
+      "--server-url", "http://cli-server:6000",
+      "--system-prompt", "CLI system prompt",
+      "--db-dir", "./cli_db",
+      "--db-connection-cache-size", "300",
+      "--db-connection-cache-ttl", "10800000",
+      "--db-connection-cache-check-interval", "1800000",
+      "--discord-slow-mode-interval", "30",
     ];
 
-    // Set environment variables as well to ensure CLI args take precedence
-    vi.stubEnv("CHAT_THYME_MODEL", "env_model");
-    vi.stubEnv("MODEL_SERVER_URL", "http://env-server:5000");
-    vi.stubEnv("MODEL_SYSTEM_PROMPT", "Environment system prompt");
-    vi.stubEnv("DB_DIR", "./env_db");
-    vi.stubEnv("DESIRED_MAX_DB_CONNECTION_CACHE_SIZE", "200");
-    vi.stubEnv("DB_CONNECTION_CACHE_TTL_MILLISECONDS", "7200000");
-    vi.stubEnv("DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS", "1200000");
-    vi.stubEnv("DISCORD_SLOW_MODE_SECONDS", "20");
+    Object.assign(process.env, {
+      CHAT_THYME_MODEL: "env_model",
+      MODEL_SERVER_URL: "http://env-server:5000",
+      MODEL_SYSTEM_PROMPT: "Environment system prompt",
+      DB_DIR: "./env_db",
+      DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
+      DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
+      DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS: "1200000",
+      DISCORD_SLOW_MODE_SECONDS: "20",
+    });
 
     const config = parseConfig();
     expect(config.discordBotToken).toBe("test_token");
@@ -102,11 +98,10 @@ describe("Configuration Parsing and Loading", () => {
     expect(config.dbConnectionCacheCheckInterval).toBe(1800000);
     expect(config.discordSlowModeInterval).toBe(30);
 
-    process.argv = originalArgv; // Restore original argv
+    process.argv = originalArgv;
   });
 
   it("should load YAML config file and be overridden by CLI and env config", () => {
-    const originalArgv = process.argv;
     const tempDir = os.tmpdir();
     const configFilePath = path.join(tempDir, "test-config.yaml");
     const configFileContent = `
@@ -121,24 +116,24 @@ discordSlowModeInterval: 40
 `;
     fs.writeFileSync(configFilePath, configFileContent);
 
+    const originalArgv = process.argv;
     process.argv = [
       ...originalArgv.slice(0, 2),
-      "--config",
-      configFilePath,
-      "--model",
-      "cli_model",
-      "--server-url",
-      "http://cli-server:6000",
+      "--config", configFilePath,
+      "--model", "cli_model",
+      "--server-url", "http://cli-server:6000",
     ];
 
-    vi.stubEnv("CHAT_THYME_MODEL", "env_model");
-    vi.stubEnv("MODEL_SERVER_URL", "http://env-server:5000");
-    vi.stubEnv("MODEL_SYSTEM_PROMPT", "Environment system prompt");
-    vi.stubEnv("DB_DIR", "./env_db");
-    vi.stubEnv("DESIRED_MAX_DB_CONNECTION_CACHE_SIZE", "200");
-    vi.stubEnv("DB_CONNECTION_CACHE_TTL_MILLISECONDS", "7200000");
-    vi.stubEnv("DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS", "1200000");
-    vi.stubEnv("DISCORD_SLOW_MODE_SECONDS", "20");
+    Object.assign(process.env, {
+      CHAT_THYME_MODEL: "env_model",
+      MODEL_SERVER_URL: "http://env-server:5000",
+      MODEL_SYSTEM_PROMPT: "Environment system prompt",
+      DB_DIR: "./env_db",
+      DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
+      DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
+      DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS: "1200000",
+      DISCORD_SLOW_MODE_SECONDS: "20",
+    });
 
     const config = parseConfig();
     expect(config.model).toBe("cli_model");
@@ -151,8 +146,8 @@ discordSlowModeInterval: 40
     expect(config.discordSlowModeInterval).toBe(20);
     expect(config.discordBotToken).toBe("test_token");
 
-    process.argv = originalArgv; // Restore original argv
-    fs.unlinkSync(configFilePath); // Clean up temp config file
+    process.argv = originalArgv;
+    fs.unlinkSync(configFilePath);
   });
 
   it("should load config from all sources with correct priority", () => {
@@ -181,15 +176,17 @@ discordSlowModeInterval: 40
       "http://cli-server:6000",
     ];
 
-    vi.stubEnv("CHAT_THYME_MODEL", "env_model_value");
-    vi.stubEnv("MODEL_SERVER_URL", "http://env-server-value:5000"); // .env and actual env var
-    vi.stubEnv("MODEL_SYSTEM_PROMPT", "Environment system prompt value"); // actual env var only (simulating .env not set)
-    vi.stubEnv("DB_DIR", "./env_db_value"); // actual env var only (simulating .env not set)
-    vi.stubEnv("DESIRED_MAX_DB_CONNECTION_CACHE_SIZE", "200"); // .env only (simulating actual env var not set)
-    vi.stubEnv("DB_CONNECTION_CACHE_TTL_MILLISECONDS", "7200000"); // .env only (simulating actual env var not set)
-    vi.stubEnv("DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS", "1200000"); // actual env var - no .env
-    vi.stubEnv("DISCORD_SLOW_MODE_SECONDS", "20"); // actual env var - no .env
-    vi.stubEnv("DISCORD_BOT_TOKEN", "stubbed_token");
+    Object.assign(process.env, {
+      CHAT_THYME_MODEL: "env_model_value",
+      MODEL_SERVER_URL: "http://env-server-value:5000",
+      MODEL_SYSTEM_PROMPT: "Environment system prompt value",
+      DB_DIR: "./env_db_value",
+      DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
+      DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
+      DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS: "1200000",
+      DISCORD_SLOW_MODE_SECONDS: "20",
+      DISCORD_BOT_TOKEN: "stubbed_token",
+    });
 
     const config = parseConfig();
     expect(config.discordBotToken).toBe("stubbed_token");
@@ -204,17 +201,17 @@ discordSlowModeInterval: 40
     expect(config.dbDir).not.toBe(defaultAppConfig.dbDir);
     expect(config.dbConnectionCacheCheckInterval).not.toBe(
       defaultAppConfig.dbConnectionCacheCheckInterval,
-    ); // Assert some values are NOT default to ensure overrides worked
+    );
 
     process.argv = originalArgv;
     fs.unlinkSync(configFilePath);
   });
 
   it("should throw an error if Discord bot token is missing", () => {
-    vi.stubEnv("DISCORD_BOT_TOKEN", undefined);
-    vi.stubEnv("CHAT_THYME_MODEL", "test_model");
+    process.env.DISCORD_BOT_TOKEN = undefined;
+    process.env.CHAT_THYME_MODEL = "test_model";
 
-    expect(parseConfig).toThrowError(ZodError);
+    expect(() => parseConfig()).toThrow(ZodError);
     try {
       parseConfig();
     } catch (error) {
@@ -236,9 +233,9 @@ discordSlowModeInterval: 40
   });
 
   it("should throw an error if model is default", () => {
-    vi.stubEnv("CHAT_THYME_MODEL", undefined);
+    process.env.CHAT_THYME_MODEL = undefined;
 
-    expect(parseConfig).toThrowError(ZodError);
+    expect(() => parseConfig()).toThrow(ZodError);
     try {
       parseConfig();
     } catch (error) {
