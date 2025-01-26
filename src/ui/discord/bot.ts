@@ -18,31 +18,23 @@ import {
   uniqueNamesGenerator,
 } from "unique-names-generator";
 import { processUserMessage } from "../../chat";
-import { config } from "../../config";
-import { getOrInitUserDb, releaseUserDb } from "../../db/sqlite";
-import type { ChatIdExistence } from "../../interfaces";
+import type { ChatThymeConfig } from "../../config/schema";
+import { getOrInitUserDb, releaseUserDb } from "../../db";
+import type {
+  ChatIdExistence,
+  ChatMessageQueue,
+  ChatThreadInfo,
+  dbCache,
+} from "../../interfaces";
 import { resumeChatCommandData, startChatCommandData } from "./commands";
 
-// Keep track of active chat threads
-const activeChatThreads = new Map<
-  string,
-  {
-    chatIdentifier: string;
-    userId: string;
-    modelOptions: Partial<OllamaOptions>;
-  }
->();
-
 // Map to store message queues per chatIdentifier
-const chatMessageQueues = new Map<
-  string,
-  {
-    queue: DiscordMessage[];
-    stopSignal: boolean;
-  }
->();
 
-const startArchivedThreadEviction = (discordClient: DiscordClient) => {
+const startArchivedThreadEviction = (
+  discordClient: DiscordClient,
+  activeChatThreads: Map<string, ChatThreadInfo>,
+  chatMessageQueues: Map<string, ChatMessageQueue>,
+) => {
   setInterval(
     async () => {
       for (const [channelId, threadInfo] of activeChatThreads) {
@@ -58,7 +50,7 @@ const startArchivedThreadEviction = (discordClient: DiscordClient) => {
             // If the channel is no longer a thread (e.g., deleted), remove it
             // from the map
             activeChatThreads.delete(channelId);
-            chatMessageQueues.delete(threadInfo.chatIdentifier);
+            chatMessageQueues.delete(threadInfo.chatId);
           }
         } catch (error) {
           console.warn(
@@ -75,7 +67,13 @@ const startArchivedThreadEviction = (discordClient: DiscordClient) => {
 export const setupDiscordBot = (
   discordClient: DiscordClient,
   ollamaClient: OllamaClient,
+  config: ChatThymeConfig,
+  userDbCache: dbCache,
 ) => {
+  // set up maps to store active chat threads and message queues
+  const activeChatThreads = new Map<string, ChatThreadInfo>();
+  const chatMessageQueues = new Map<string, ChatMessageQueue>();
+
   // Command registration
   discordClient.on("ready", async () => {
     console.info(`Logged in as ${discordClient.user?.tag}!`);
@@ -91,34 +89,51 @@ export const setupDiscordBot = (
         );
         await guild.commands.create(startChatCommandData);
         console.debug(
-          `Creating resume-chat command for guild ${guild.name} (${guild.id})...`,
+          `Creating resume-chat command for guild ${guild.name} \
+(${guild.id})...`,
         );
         await guild.commands.create(resumeChatCommandData);
       }
       console.info(
         "start-chat and resume-chat slash commands registered successfully.",
       );
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 second delay
+      // 5 second delay
+      await new Promise((resolve) => setTimeout(resolve, 5000));
       console.info("Delay finished after command registration. Bot ready.");
     } catch (error) {
       console.error("Error registering slash command:", error);
     }
 
-    startArchivedThreadEviction(discordClient);
+    startArchivedThreadEviction(
+      discordClient,
+      activeChatThreads,
+      chatMessageQueues,
+    );
   });
 
   // Slash command interaction
   discordClient.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     console.debug(
-      `Interaction received: ${interaction.commandName}, User: ${interaction.user.tag}, Options: ${JSON.stringify(interaction.options.data)}`,
+      `Interaction received: ${interaction.commandName}, User: \
+${interaction.user.tag}, Options: ${JSON.stringify(interaction.options.data)}`,
     );
     if (interaction.commandName === "start-chat") {
       console.debug("Handling start-chat command.");
-      await handleStartChatCommand(interaction);
+      await handleStartChatCommand(
+        interaction,
+        config,
+        userDbCache,
+        activeChatThreads,
+      );
     } else if (interaction.commandName === "resume-chat") {
       console.debug("Handling resume-chat command.");
-      await handleResumeChatCommand(interaction);
+      await handleResumeChatCommand(
+        interaction,
+        config,
+        userDbCache,
+        activeChatThreads,
+      );
     }
   });
 
@@ -130,11 +145,14 @@ export const setupDiscordBot = (
     if (chatThreadInfo) {
       if (discordMessage.author.id === chatThreadInfo.userId) {
         await handleUserMessage(
+          chatMessageQueues,
           discordMessage,
           ollamaClient,
-          chatThreadInfo.chatIdentifier,
+          chatThreadInfo.chatId,
           chatThreadInfo.modelOptions,
           chatThreadInfo.userId,
+          config,
+          userDbCache,
         );
       }
     }
@@ -173,6 +191,8 @@ const createDiscordThread = async (
   interaction: ChatInputCommandInteraction,
   chatIdentifier: string,
   newDiscordThreadReason: string,
+  config: ChatThymeConfig,
+  activeChatThreads: Map<string, ChatThreadInfo>,
 ): Promise<void> => {
   await interaction.deferReply(); // Defer reply at the beginning
 
@@ -231,7 +251,7 @@ const createDiscordThread = async (
     );
 
     activeChatThreads.set(newDiscordThread.id, {
-      chatIdentifier: chatIdentifier,
+      chatId: chatIdentifier,
       userId: interaction.user.id,
       modelOptions: getModelOptions(interaction),
     });
@@ -248,10 +268,13 @@ const createDiscordThread = async (
 
 const handleStartChatCommand = async (
   interaction: ChatInputCommandInteraction,
+  config: ChatThymeConfig,
+  userDbCache: dbCache,
+  activeChatThreads: Map<string, ChatThreadInfo>,
 ) => {
   let userDb: Database;
   try {
-    userDb = await getOrInitUserDb(interaction.user.id);
+    userDb = await getOrInitUserDb(interaction.user.id, config, userDbCache);
   } catch (error) {
     console.error(
       `Error getting/initializing user database for ${interaction.user.id}:`,
@@ -281,22 +304,27 @@ const handleStartChatCommand = async (
     );
     throw error;
   } finally {
-    await releaseUserDb(interaction.user.id);
+    await releaseUserDb(interaction.user.id, userDbCache);
   }
 
   await createDiscordThread(
     interaction,
     chatIdentifier,
     `New LLM chat requested by ${interaction.user.username}`,
+    config,
+    activeChatThreads,
   );
 };
 
 const handleResumeChatCommand = async (
   interaction: ChatInputCommandInteraction,
+  config: ChatThymeConfig,
+  userDbCache: dbCache,
+  activeChatThreads: Map<string, ChatThreadInfo>,
 ) => {
   let userDb: Database;
   try {
-    userDb = await getOrInitUserDb(interaction.user.id);
+    userDb = await getOrInitUserDb(interaction.user.id, config, userDbCache);
   } catch (error) {
     console.error(
       `Error getting/initializing user database for ${interaction.user.id}:`,
@@ -322,7 +350,7 @@ const handleResumeChatCommand = async (
     );
     throw error;
   } finally {
-    await releaseUserDb(interaction.user.id);
+    await releaseUserDb(interaction.user.id, userDbCache);
   }
 
   if (chatIdExists.exists !== 1) {
@@ -334,21 +362,34 @@ const handleResumeChatCommand = async (
     interaction,
     chatIdentifier,
     `LLM chat resumption requested by ${interaction.user.username}`,
+    config,
+    activeChatThreads,
   );
 };
 
 const handleUserMessage = async (
+  chatMessageQueues: Map<string, ChatMessageQueue>,
   discordMessage: DiscordMessage,
   ollamaClient: OllamaClient,
   chatIdentifier: string,
   modelOptions: Partial<OllamaOptions>,
   userId: string,
+  config: ChatThymeConfig,
+  userDbCache: dbCache,
 ) => {
   let messageQueueEntry = chatMessageQueues.get(chatIdentifier);
   if (!messageQueueEntry) {
     messageQueueEntry = { queue: [], stopSignal: false };
     chatMessageQueues.set(chatIdentifier, messageQueueEntry);
-    startQueueWorker(chatIdentifier, ollamaClient, modelOptions, userId);
+    startQueueWorker(
+      chatMessageQueues,
+      chatIdentifier,
+      ollamaClient,
+      modelOptions,
+      userId,
+      config,
+      userDbCache,
+    );
   }
 
   messageQueueEntry.queue.push(discordMessage);
@@ -358,10 +399,13 @@ const handleUserMessage = async (
 };
 
 const startQueueWorker = (
+  chatMessageQueues: Map<string, ChatMessageQueue>,
   chatIdentifier: string,
   ollamaClient: OllamaClient,
   modelOptions: Partial<OllamaOptions>,
   userId: string,
+  config: ChatThymeConfig,
+  userDbCache: dbCache,
 ) => {
   let messageQueueEntry = chatMessageQueues.get(chatIdentifier);
   if (!messageQueueEntry) {
@@ -395,6 +439,8 @@ const startQueueWorker = (
             chatIdentifier,
             modelOptions,
             userId,
+            config,
+            userDbCache,
           );
         } catch (error) {
           console.error(
@@ -418,6 +464,8 @@ const processMessageFromQueue = async (
   chatIdentifier: string,
   modelOptions: Partial<OllamaOptions>,
   userId: string,
+  config: ChatThymeConfig,
+  userDbCache: dbCache,
 ) => {
   try {
     const response = await processUserMessage(
@@ -427,6 +475,8 @@ const processMessageFromQueue = async (
       discordMessage.content,
       discordMessage.createdAt,
       modelOptions,
+      config,
+      userDbCache,
     );
 
     // Discord has a message limit of 2000

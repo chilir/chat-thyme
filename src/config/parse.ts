@@ -4,7 +4,7 @@ import fs from "node:fs";
 import yaml from "yaml";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { type Config, configSchema, defaultAppConfig } from "./schema";
+import { type ChatThymeConfig, configSchema, defaultAppConfig } from "./schema";
 
 /**
  * Parses command line arguments using yargs to configure application settings.
@@ -97,7 +97,7 @@ messages (optional, default: ${defaultAppConfig.discordSlowModeInterval})`,
  * - Successfully loading the config file will log an info message
  */
 const loadFromConfigFile = (parsedArgs: ReturnType<typeof loadFromArgs>) => {
-  let configFileConfig: Partial<Config> = {};
+  let configFileConfig: Partial<ChatThymeConfig> = {};
   const configFilePath = parsedArgs.config as string;
   if (configFilePath) {
     try {
@@ -127,7 +127,7 @@ const loadFromConfigFile = (parsedArgs: ReturnType<typeof loadFromArgs>) => {
  * - Discord slow mode interval
  *
  * @throws {ZodError} If configuration validation fails against the schema
- * @returns {Config} Validated configuration object matching the configSchema
+ * @returns {ChatThymeConfig} Validated configuration object matching the configSchema
  */
 export const parseConfig = () => {
   const parsedArgs = loadFromArgs();

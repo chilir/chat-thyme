@@ -47,4 +47,4 @@ export const configSchema = z.object({
     .default(defaultAppConfig.discordSlowModeInterval),
 });
 
-export type Config = z.infer<typeof configSchema>;
+export type ChatThymeConfig = z.infer<typeof configSchema>;

@@ -2,24 +2,30 @@
 
 import { Client, GatewayIntentBits } from "discord.js";
 import { Ollama as OllamaClient } from "ollama";
-import { config } from "./config";
+import { parseConfig } from "./config";
+import { initUserDbCache } from "./db";
 import { setupSignalHandlers } from "./signal-handlers";
 import { setupDiscordBot } from "./ui/discord";
 
-setupSignalHandlers();
+const main = () => {
+  const userDbCache = initUserDbCache();
+  setupSignalHandlers(userDbCache);
 
-const ollamaClient = new OllamaClient({
-  host: config.serverUrl,
-});
+  const config = parseConfig();
 
-const discordClient = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
-});
+  const ollamaClient = new OllamaClient({
+    host: config.serverUrl,
+  });
+  const discordClient = new Client({
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent,
+    ],
+  });
 
-setupDiscordBot(discordClient, ollamaClient);
+  setupDiscordBot(discordClient, ollamaClient, config, userDbCache);
+  discordClient.login(config.discordBotToken);
+};
 
-discordClient.login(config.discordBotToken);
+main();

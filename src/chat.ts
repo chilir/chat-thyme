@@ -7,14 +7,16 @@ import type {
   Ollama as OllamaClient,
   Options as OllamaOptions,
 } from "ollama";
-import { config } from "./config";
+import type { ChatThymeConfig } from "./config/schema";
 import { getOrInitUserDb, releaseUserDb } from "./db/sqlite";
+import type { dbCache } from "./interfaces";
 import { chatWithModel } from "./llm-service/ollama";
 
 export const getChatHistoryFromDb = async (
   userDb: Database,
   userId: string,
   chatIdentifier: string,
+  systemPrompt: string,
 ): Promise<ChatMessage[]> => {
   let chatHistory: ChatMessage[];
   try {
@@ -38,7 +40,7 @@ export const getChatHistoryFromDb = async (
   if (chatHistory.length === 0) {
     chatHistory.push({
       role: "system",
-      content: config.systemPrompt,
+      content: systemPrompt,
     });
   }
 
@@ -74,10 +76,12 @@ export const processUserMessage = async (
   discordMessageContent: string,
   discordMessageTimestamp: Date,
   options: Partial<OllamaOptions>,
+  config: ChatThymeConfig,
+  userDbCache: dbCache,
 ): Promise<string> => {
   let userDb: Database;
   try {
-    userDb = await getOrInitUserDb(userId);
+    userDb = await getOrInitUserDb(userId, config, userDbCache);
   } catch (error) {
     console.error(
       `Error getting/initializing user database for ${userId}:`,
@@ -92,6 +96,7 @@ export const processUserMessage = async (
       userDb,
       userId,
       chatIdentifier,
+      config.systemPrompt,
     );
 
     currentChatMessages.push({ role: "user", content: discordMessageContent });
@@ -131,7 +136,7 @@ export const processUserMessage = async (
     );
     throw error;
   } finally {
-    await releaseUserDb(userId);
+    await releaseUserDb(userId, userDbCache);
   }
   return response.message.content;
 };

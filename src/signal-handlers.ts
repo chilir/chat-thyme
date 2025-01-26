@@ -1,12 +1,13 @@
 // src/signalhandlers.ts
 
-import { clearUserDbCache } from "./db/sqlite";
+import { clearUserDbCache } from "./db";
+import type { dbCache } from "./interfaces";
 
-export const setupSignalHandlers = () => {
+export const setupSignalHandlers = (userDbCache: dbCache) => {
   process.on("SIGINT", async () => {
     console.info("SIGINT received. Cleaning up user DB cache...");
     try {
-      await clearUserDbCache();
+      await clearUserDbCache(userDbCache);
       console.info("Cleanup complete. Exiting...");
       process.exit(0);
     } catch (cleanupError) {
@@ -20,7 +21,7 @@ export const setupSignalHandlers = () => {
   process.on("SIGTERM", async () => {
     console.info("SIGTERM received. Cleaning up user DB cache...");
     try {
-      await clearUserDbCache();
+      await clearUserDbCache(userDbCache);
       console.info("Cleanup complete. Exiting...");
       process.exit(0);
     } catch (cleanupError) {
@@ -34,7 +35,7 @@ export const setupSignalHandlers = () => {
   process.on("SIGQUIT", async () => {
     console.info("SIGQUIT received. Cleaning up user DB cache...");
     try {
-      await clearUserDbCache();
+      await clearUserDbCache(userDbCache);
       console.info("Cleanup complete. Exiting...");
       process.exit(0);
     } catch (cleanupError) {
@@ -49,7 +50,7 @@ export const setupSignalHandlers = () => {
     console.error("Uncaught Exception:", err);
     console.info("Cleaning up user DB cache...");
     try {
-      await clearUserDbCache();
+      await clearUserDbCache(userDbCache);
       console.info("Cleanup complete. Exiting...");
       process.exit(1);
     } catch (cleanupError) {
@@ -64,7 +65,7 @@ export const setupSignalHandlers = () => {
     console.error("Unhandled Rejection at:", promise, "reason:", reason);
     console.info("Cleaning up user DB cache...");
     try {
-      await clearUserDbCache();
+      await clearUserDbCache(userDbCache);
       console.info("Cleanup complete. Exiting...");
       process.exit(1);
     } catch (cleanupError) {
