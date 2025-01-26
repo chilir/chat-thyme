@@ -1,3 +1,5 @@
+// src/llm-service/ollama.test.ts
+
 import { describe, expect, it, mock } from "bun:test";
 import type { ChatResponse, Ollama } from "ollama";
 import { chatWithModel } from "./ollama";

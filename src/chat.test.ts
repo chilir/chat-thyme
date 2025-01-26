@@ -1,3 +1,5 @@
+// src/chat.test.ts
+
 import type { Database } from "bun:sqlite";
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type { Message as ChatMessage, ChatResponse, Ollama } from "ollama";
@@ -75,9 +77,11 @@ describe("Chat Module", () => {
         native: false,
         as: () => ({}),
         expand: () => [],
-        [Symbol.iterator]: function* () { yield* []; },
+        [Symbol.iterator]: function* () {
+          yield* [];
+        },
         [Symbol.dispose]: () => {},
-      })) as unknown as Database['query'];
+      })) as unknown as Database["query"];
 
       const history = await getChatHistoryFromDb(
         mockDb,
@@ -114,7 +118,12 @@ describe("Chat Module", () => {
       });
 
       await expect(
-        getChatHistoryFromDb(mockDb, "user123", "chat456", "Test system prompt")
+        getChatHistoryFromDb(
+          mockDb,
+          "user123",
+          "chat456",
+          "Test system prompt",
+        ),
       ).rejects.toThrow("Database error");
     });
   });

@@ -28,8 +28,6 @@ import type {
 } from "../../interfaces";
 import { resumeChatCommandData, startChatCommandData } from "./commands";
 
-// Map to store message queues per chatIdentifier
-
 const startArchivedThreadEviction = (
   discordClient: DiscordClient,
   activeChatThreads: Map<string, ChatThreadInfo>,

@@ -1,7 +1,9 @@
+// src/config/parse.test.ts
+
+import { beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, beforeEach } from "bun:test";
 import { ZodError } from "zod";
 import { parseConfig } from "./parse";
 import { defaultAppConfig } from "./schema";
@@ -66,14 +68,22 @@ describe("Configuration Parsing and Loading", () => {
     const originalArgv = process.argv;
     process.argv = [
       ...originalArgv.slice(0, 2),
-      "--model", "cli_model",
-      "--server-url", "http://cli-server:6000",
-      "--system-prompt", "CLI system prompt",
-      "--db-dir", "./cli_db",
-      "--db-connection-cache-size", "300",
-      "--db-connection-cache-ttl", "10800000",
-      "--db-connection-cache-check-interval", "1800000",
-      "--discord-slow-mode-interval", "30",
+      "--model",
+      "cli_model",
+      "--server-url",
+      "http://cli-server:6000",
+      "--system-prompt",
+      "CLI system prompt",
+      "--db-dir",
+      "./cli_db",
+      "--db-connection-cache-size",
+      "300",
+      "--db-connection-cache-ttl",
+      "10800000",
+      "--db-connection-cache-check-interval",
+      "1800000",
+      "--discord-slow-mode-interval",
+      "30",
     ];
 
     Object.assign(process.env, {
@@ -119,9 +129,12 @@ discordSlowModeInterval: 40
     const originalArgv = process.argv;
     process.argv = [
       ...originalArgv.slice(0, 2),
-      "--config", configFilePath,
-      "--model", "cli_model",
-      "--server-url", "http://cli-server:6000",
+      "--config",
+      configFilePath,
+      "--model",
+      "cli_model",
+      "--server-url",
+      "http://cli-server:6000",
     ];
 
     Object.assign(process.env, {

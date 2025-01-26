@@ -1,6 +1,7 @@
+// src/db/sqlite.test.ts
+
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { Mutex } from "async-mutex";
 import tmp from "tmp";
 import type { ChatThymeConfig } from "../config/schema";
 import type { dbCache } from "../interfaces";
