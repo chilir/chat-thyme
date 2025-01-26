@@ -12,6 +12,15 @@ import { getOrInitUserDb, releaseUserDb } from "./db/sqlite";
 import type { dbCache } from "./interfaces";
 import { chatWithModel } from "./llm-service/ollama";
 
+/**
+ * Retrieves chat history for a specific user and chat from the database
+ * @param userDb - SQLite database instance for the user
+ * @param userId - Unique identifier for the user
+ * @param chatIdentifier - Unique identifier for the chat session
+ * @param systemPrompt - System prompt to be used if chat history is empty
+ * @returns Array of chat messages
+ * @throws {Error} If database query fails
+ */
 export const getChatHistoryFromDb = async (
   userDb: Database,
   userId: string,
@@ -47,6 +56,16 @@ export const getChatHistoryFromDb = async (
   return chatHistory;
 };
 
+/**
+ * Saves a chat message to the user's database
+ * @param userDb - SQLite database instance for the user
+ * @param userId - Unique identifier for the user
+ * @param chatIdentifier - Unique identifier for the chat session
+ * @param role - Role of the message sender ("user" or "assistant")
+ * @param content - Content of the message
+ * @param timestamp - Timestamp of when the message was sent
+ * @throws {Error} If database insertion fails
+ */
 export const saveChatMessageToDb = async (
   userDb: Database,
   userId: string,
@@ -69,6 +88,20 @@ export const saveChatMessageToDb = async (
   }
 };
 
+/**
+ * Processes a user message through the LLM model and saves the conversation to
+ * the database
+ * @param userId - Unique identifier for the user
+ * @param ollamaClient - Ollama client instance
+ * @param chatIdentifier - Unique identifier for the chat session
+ * @param discordMessageContent - Content of the user's message
+ * @param discordMessageTimestamp - Timestamp of the user's message
+ * @param options - Ollama model options
+ * @param config - Chat-Thyme configuration
+ * @param userDbCache - Database cache object
+ * @returns The AI model's response content
+ * @throws {Error} If database operations or model interaction fails
+ */
 export const processUserMessage = async (
   userId: string,
   ollamaClient: OllamaClient,
