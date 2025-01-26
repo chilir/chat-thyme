@@ -39,19 +39,18 @@ export const getChatHistoryFromDb = async (
       .all(chatIdentifier) as ChatMessage[];
   } catch (error) {
     console.error(
-      `Error getting chat history from database for ${userId} in chat ${chatIdentifier}:`,
+      `Error getting chat history from database for ${userId} in chat \
+${chatIdentifier}:`,
       error,
     );
     throw error;
   }
 
-  // beginning of chat - set the system prompt
-  if (chatHistory.length === 0) {
-    chatHistory.push({
-      role: "system",
-      content: systemPrompt,
-    });
-  }
+  // inject system prompt
+  chatHistory.unshift({
+    role: "system",
+    content: systemPrompt,
+  });
 
   return chatHistory;
 };

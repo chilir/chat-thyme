@@ -24,12 +24,13 @@ describe("Chat Module", () => {
     tempDbDir = tmp.dirSync({ unsafeCleanup: true }).name;
 
     // Mock Database
+    const defaultMockMessages: ChatMessage[] = [
+      { role: "user", content: "Hello" },
+      { role: "assistant", content: "Hi there" },
+    ];
     mockDb = {
       query: mock(() => ({
-        all: mock((chatId: string) => [
-          { role: "user", content: "Hello" },
-          { role: "assistant", content: "Hi there" },
-        ]),
+        all: mock((): ChatMessage[] => defaultMockMessages),
       })),
       run: mock(() => {}),
     } as unknown as Database;
@@ -65,7 +66,7 @@ describe("Chat Module", () => {
   describe("getChatHistoryFromDb", () => {
     it("should return chat history with system prompt for empty history", async () => {
       mockDb.query = mock(() => ({
-        all: mock(() => []),
+        all: mock((): ChatMessage[] => []),
         get: mock(() => null),
         run: mock(() => {}),
         values: mock(() => []),
@@ -97,7 +98,15 @@ describe("Chat Module", () => {
       });
     });
 
-    it("should return existing chat history", async () => {
+    it("should prepend system prompt to existing chat history", async () => {
+      const mockMessages: ChatMessage[] = [
+        { role: "user", content: "Hello" },
+        { role: "assistant", content: "Hi there" },
+      ];
+      mockDb.query = mock(() => ({
+        all: mock((): ChatMessage[] => structuredClone(mockMessages)),
+      })) as unknown as Database["query"];
+
       const history = await getChatHistoryFromDb(
         mockDb,
         "user123",
@@ -105,11 +114,16 @@ describe("Chat Module", () => {
         "Test system prompt",
       );
 
-      expect(history).toHaveLength(2);
+      console.log(history);
+      expect(history).toHaveLength(3);
       expect(history[0]).toEqual({
-        role: "user",
-        content: "Hello",
+        role: "system",
+        content: "Test system prompt",
       });
+      console.log(history[1]);
+      console.log(mockMessages[0]);
+      expect(history[1]).toEqual(mockMessages[0] as ChatMessage);
+      expect(history[2]).toEqual(mockMessages[1] as ChatMessage);
     });
 
     it("should handle database query errors", async () => {
@@ -117,7 +131,7 @@ describe("Chat Module", () => {
         throw new Error("Database error");
       });
 
-      await expect(
+      expect(
         getChatHistoryFromDb(
           mockDb,
           "user123",
@@ -169,7 +183,7 @@ describe("Chat Module", () => {
         throw new Error("API Error");
       });
 
-      await expect(
+      expect(
         processUserMessage(
           "user123",
           mockOllamaClient,
