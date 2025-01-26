@@ -6,6 +6,18 @@ import path from "node:path";
 import type { ChatThymeConfig } from "../config/schema";
 import type { DbCacheEntry, dbCache } from "../interfaces";
 
+/**
+ * Gets an existing database connection from cache or initializes a new one.
+ * Implements an LRU cache with reference counting for database connections.
+ * Creates necessary directory structure and database schema if they don't
+ * exist.
+ *
+ * @param {string} userId - The Discord user ID to get/create database for
+ * @param {ChatThymeConfig} config - Application configuration
+ * @param {dbCache} userDbCache - The database connection cache
+ * @returns {Promise<Database>} The database connection
+ * @throws Will throw an error if database operations fail
+ */
 export const getOrInitUserDb = async (
   userId: string,
   config: ChatThymeConfig,
@@ -119,6 +131,16 @@ Initializing new database object from ${dbPath}.`,
   return db;
 };
 
+/**
+ * Decrements the reference count for a user's database connection.
+ * This allows the connection to be cleaned up by the cache eviction process
+ * when the reference count reaches 0.
+ *
+ * @param {string} userId - The Discord user ID whose database connection to
+ * release
+ * @param {dbCache} userDbCache - The database connection cache
+ * @returns {Promise<void>}
+ */
 export const releaseUserDb = async (userId: string, userDbCache: dbCache) => {
   const release = await userDbCache.mutex.acquire();
   try {

@@ -4,6 +4,14 @@ import { Mutex } from "async-mutex";
 import type { ChatThymeConfig } from "../config/schema";
 import type { DbCacheEntry, dbCache } from "../interfaces";
 
+/**
+ * Initializes a new database cache for user connections.
+ * Creates a new Map to store database connections, a mutex for thread safety,
+ * and a placeholder for the cache maintenance interval.
+ *
+ * @returns {dbCache} A new database cache object containing the cache Map,
+ * mutex, and interval ID
+ */
 export const initUserDbCache = () => {
   const cache = new Map<string, DbCacheEntry>();
   const mutex = new Mutex();
@@ -12,7 +20,16 @@ export const initUserDbCache = () => {
   return { cache, mutex, checkIntervalId };
 };
 
-// background task
+/**
+ * Starts a background task that periodically checks and evicts expired database
+ * connections.
+ * A database connection is considered expired if it hasn't been accessed for
+ * longer than the TTL and has no active references.
+ *
+ * @param {ChatThymeConfig} config - The application configuration containing
+ * cache settings
+ * @param {dbCache} userDbCache - The database cache to maintain
+ */
 export const backgroundEvictExpiredDbs = (
   config: ChatThymeConfig,
   userDbCache: dbCache,
@@ -42,6 +59,14 @@ export const backgroundEvictExpiredDbs = (
   }
 };
 
+/**
+ * Closes all database connections and clears the cache.
+ * This function also stops the background cache maintenance task.
+ * Should be called during application shutdown.
+ * 
+ * @param {dbCache} userDbCache - The database cache to clear
+ * @returns {Promise<void>}
+ */
 export const clearUserDbCache = async (userDbCache: dbCache) => {
   const release = await userDbCache.mutex.acquire();
   try {

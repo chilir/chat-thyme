@@ -215,7 +215,6 @@ describe("In-Memory Database Cache", () => {
 
   it("should handle large number of entries efficiently", async () => {
     const entriesCount = 1000;
-    const startTime = performance.now();
 
     // Add many entries
     for (let i = 0; i < entriesCount; i++) {
@@ -229,8 +228,5 @@ describe("In-Memory Database Cache", () => {
 
     backgroundEvictExpiredDbs(testConfig, userDbCache);
     await clearUserDbCache(userDbCache);
-
-    const duration = performance.now() - startTime;
-    expect(duration).toBeLessThan(1000); // Should complete within 1 second
-  });
+  }, 1000);
 });
