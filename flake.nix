@@ -49,7 +49,7 @@
           buildInputs = [ pkgs.bun ];
           buildPhase = ''
             bun install --no-progress --frozen-lockfile
-            bun build src/index.ts --minify --sourcemap --bytecode --target=bun --outdir=dist
+            bun build src/index.ts --minify --sourcemap=linked --target=bun --outdir=dist
           '';
 
           installPhase = ''
@@ -57,7 +57,7 @@
             cp dist/* $out/lib/
             mkdir -p $out/bin
             echo '#!/bin/sh' > $out/bin/app
-            echo "exec ${pkgs.bun}/bin/bun run $out/lib/index.js" >> $out/bin/app
+            echo "exec ${pkgs.bun}/bin/bun run $out/lib/index.js \"\$@\"" >> $out/bin/app
             chmod +x $out/bin/app
           '';
         };
