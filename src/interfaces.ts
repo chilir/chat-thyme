@@ -4,11 +4,10 @@ import type { Database } from "bun:sqlite";
 import type { Mutex } from "async-mutex";
 import type { Message as DiscordMessage } from "discord.js";
 import type OpenAI from "openai";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 export interface ChatPrompt {
   modelName: string;
-  messages: ChatCompletionMessageParam[];
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 }
 
 export interface ChatParameters
