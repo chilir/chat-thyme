@@ -16,6 +16,7 @@ const main = () => {
   const modelClient = new OpenAI({
     baseURL: config.serverUrl,
     apiKey: config.apiKey,
+    maxRetries: 5,
   });
   const discordClient = new Client({
     intents: [
