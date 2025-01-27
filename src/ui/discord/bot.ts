@@ -189,6 +189,7 @@ const getModelOptions = (
     top_a: topA,
     top_k: topK,
     top_p: topP,
+    include_reasoning: true,
   };
 };
 
@@ -199,8 +200,6 @@ const createDiscordThread = async (
   config: ChatThymeConfig,
   activeChatThreads: Map<string, ChatThreadInfo>,
 ): Promise<void> => {
-  await interaction.deferReply(); // Defer reply at the beginning
-
   // Get user specified Discord thread properties
   const autoArchiveMinutes =
     interaction.options.getInteger("auto_archive_minutes") ?? 60;
@@ -277,6 +276,8 @@ const handleStartChatCommand = async (
   userDbCache: dbCache,
   activeChatThreads: Map<string, ChatThreadInfo>,
 ) => {
+  await interaction.deferReply({ ephemeral: true });
+
   let userDb: Database;
   try {
     userDb = await getOrInitUserDb(interaction.user.id, config, userDbCache);
@@ -327,6 +328,8 @@ const handleResumeChatCommand = async (
   userDbCache: dbCache,
   activeChatThreads: Map<string, ChatThreadInfo>,
 ) => {
+  await interaction.deferReply({ ephemeral: true });
+
   let userDb: Database;
   try {
     userDb = await getOrInitUserDb(interaction.user.id, config, userDbCache);
@@ -359,6 +362,7 @@ const handleResumeChatCommand = async (
   }
 
   if (chatIdExists.exists !== 1) {
+    console.warn(`No existing messages found for chat ${chatIdentifier}`);
     await interaction.editReply(`Chat "${chatIdentifier}" does not exist.`);
     return;
   }
