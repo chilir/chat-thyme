@@ -17,6 +17,17 @@ export interface ChatParameters
   repeat_penalty?: number | null;
   min_p?: number | null;
   top_a?: number | null;
+  include_reasoning?: boolean | null;
+}
+
+interface ErrorResponse {
+  code: number;
+  message: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ChatResponse extends OpenAI.Chat.ChatCompletion {
+  error?: ErrorResponse;
 }
 
 export interface ChatIdExistence {
