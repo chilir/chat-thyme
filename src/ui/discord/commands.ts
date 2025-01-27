@@ -5,6 +5,56 @@ import { SlashCommandBuilder } from "discord.js";
 export const startChatCommandData = new SlashCommandBuilder()
   .setName("start-chat")
   .setDescription("Start a chat with the LLM.")
+  .addIntegerOption(
+    (option) =>
+      option
+        .setName("auto_archive_minutes")
+        .setDescription("Minutes until thread auto archives")
+        .setRequired(false)
+        .setMinValue(60) // Minimum 1 hour
+        .setMaxValue(10080), // Maximum 7 days,
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("frequency_penalty")
+      .setDescription("The frequency_penalty of the model (-2 to 2)")
+      .setRequired(false)
+      .setMinValue(0)
+      .setMaxValue(2),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName("max_tokens")
+      .setDescription(
+        "Sets the size of the context window used to generate the next token",
+      )
+      .setRequired(false)
+      .setMinValue(1),
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("min_p")
+      .setDescription("The min_p of the model (0 to 1)")
+      .setRequired(false)
+      .setMinValue(0)
+      .setMaxValue(1),
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("presence_penalty")
+      .setDescription("The presence_penalty of the model (-2 to 2)")
+      .setRequired(false)
+      .setMinValue(-2)
+      .setMaxValue(2),
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("repeat_penalty")
+      .setDescription("The repeat_penalty of the model (0-2)")
+      .setRequired(false)
+      .setMinValue(0)
+      .setMaxValue(2),
+  )
   .addNumberOption((option) =>
     option
       .setName("temperature")
@@ -13,14 +63,19 @@ export const startChatCommandData = new SlashCommandBuilder()
       .setMinValue(0)
       .setMaxValue(2),
   )
-  .addIntegerOption((option) =>
+  .addStringOption((option) =>
     option
-      .setName("num_ctx")
-      .setDescription(
-        "Sets the size of the context window used to generate the next token",
-      )
+      .setName("thread_name")
+      .setDescription("Custom name for the chat thread")
+      .setRequired(false),
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("top_a")
+      .setDescription("The top_a of the model (0 to 1)")
       .setRequired(false)
-      .setMinValue(1),
+      .setMinValue(0)
+      .setMaxValue(1),
   )
   .addNumberOption((option) =>
     option
@@ -37,45 +92,6 @@ export const startChatCommandData = new SlashCommandBuilder()
       .setRequired(false)
       .setMinValue(0)
       .setMaxValue(1),
-  )
-  .addNumberOption((option) =>
-    option
-      .setName("repeat_penalty")
-      .setDescription("The repeat_penalty of the model (0-2)")
-      .setRequired(false)
-      .setMinValue(0)
-      .setMaxValue(2),
-  )
-  .addNumberOption((option) =>
-    option
-      .setName("frequency_penalty")
-      .setDescription("The frequency_penalty of the model (0-2)")
-      .setRequired(false)
-      .setMinValue(0)
-      .setMaxValue(2),
-  )
-  .addNumberOption((option) =>
-    option
-      .setName("presence_penalty")
-      .setDescription("The presence_penalty of the model (0-2)")
-      .setRequired(false)
-      .setMinValue(0)
-      .setMaxValue(2),
-  )
-  .addStringOption((option) =>
-    option
-      .setName("thread_name")
-      .setDescription("Custom name for the chat thread")
-      .setRequired(false),
-  )
-  .addIntegerOption(
-    (option) =>
-      option
-        .setName("auto_archive_minutes")
-        .setDescription("Minutes until thread auto archives")
-        .setRequired(false)
-        .setMinValue(60) // Minimum 1 hour
-        .setMaxValue(10080), // Maximum 7 days,
   );
 
 export const resumeChatCommandData = new SlashCommandBuilder()
@@ -87,6 +103,55 @@ export const resumeChatCommandData = new SlashCommandBuilder()
       .setDescription("The identifier of the chat to resume")
       .setRequired(true),
   )
+  .addIntegerOption((option) =>
+    option
+      .setName("auto_archive_minutes")
+      .setDescription("Minutes until thread auto archives")
+      .setRequired(false)
+      .setMinValue(60)
+      .setMaxValue(10080),
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("frequency_penalty")
+      .setDescription("The frequency_penalty of the model (0-2)")
+      .setRequired(false)
+      .setMinValue(0)
+      .setMaxValue(2),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName("max_tokens")
+      .setDescription(
+        "Sets the size of the context window used to generate the next token",
+      )
+      .setRequired(false)
+      .setMinValue(1),
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("min_p")
+      .setDescription("The min_p of the model (0 to 1)")
+      .setRequired(false)
+      .setMinValue(0)
+      .setMaxValue(1),
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("presence_penalty")
+      .setDescription("The presence_penalty of the model (0-2)")
+      .setRequired(false)
+      .setMinValue(0)
+      .setMaxValue(2),
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("repeat_penalty")
+      .setDescription("The repeat_penalty of the model (0-2)")
+      .setRequired(false)
+      .setMinValue(0)
+      .setMaxValue(2),
+  )
   .addNumberOption((option) =>
     option
       .setName("temperature")
@@ -95,14 +160,19 @@ export const resumeChatCommandData = new SlashCommandBuilder()
       .setMinValue(0)
       .setMaxValue(2),
   )
-  .addIntegerOption((option) =>
+  .addStringOption((option) =>
     option
-      .setName("num_ctx")
-      .setDescription(
-        "Sets the size of the context window used to generate the next token",
-      )
+      .setName("thread_name")
+      .setDescription("Custom name for the chat thread")
+      .setRequired(false),
+  )
+  .addNumberOption((option) =>
+    option
+      .setName("top_a")
+      .setDescription("The top_a of the model (0 to 1)")
       .setRequired(false)
-      .setMinValue(1),
+      .setMinValue(0)
+      .setMaxValue(1),
   )
   .addNumberOption((option) =>
     option
@@ -119,42 +189,4 @@ export const resumeChatCommandData = new SlashCommandBuilder()
       .setRequired(false)
       .setMinValue(0)
       .setMaxValue(1),
-  )
-  .addNumberOption((option) =>
-    option
-      .setName("repeat_penalty")
-      .setDescription("The repeat_penalty of the model (0-2)")
-      .setRequired(false)
-      .setMinValue(0)
-      .setMaxValue(2),
-  )
-  .addNumberOption((option) =>
-    option
-      .setName("frequency_penalty")
-      .setDescription("The frequency_penalty of the model (0-2)")
-      .setRequired(false)
-      .setMinValue(0)
-      .setMaxValue(2),
-  )
-  .addNumberOption((option) =>
-    option
-      .setName("presence_penalty")
-      .setDescription("The presence_penalty of the model (0-2)")
-      .setRequired(false)
-      .setMinValue(0)
-      .setMaxValue(2),
-  )
-  .addStringOption((option) =>
-    option
-      .setName("thread_name")
-      .setDescription("Custom name for the chat thread")
-      .setRequired(false),
-  )
-  .addIntegerOption((option) =>
-    option
-      .setName("auto_archive_minutes")
-      .setDescription("Minutes until thread auto archives")
-      .setRequired(false)
-      .setMinValue(60)
-      .setMaxValue(10080),
   );

@@ -23,6 +23,7 @@ describe("Configuration Parsing and Loading", () => {
     const config = parseConfig();
     expect(config.discordBotToken).toBe("test_token");
     expect(config.model).toBe("test_model");
+    expect(config.apiKey).toBe(defaultAppConfig.apiKey);
     expect(config.serverUrl).toBe(defaultAppConfig.serverUrl);
     expect(config.systemPrompt).toBe(defaultAppConfig.systemPrompt);
     expect(config.dbDir).toBe(defaultAppConfig.dbDir);
@@ -45,6 +46,7 @@ describe("Configuration Parsing and Loading", () => {
       CHAT_THYME_MODEL: "env_model",
       MODEL_SERVER_URL: "http://env-server:5000",
       MODEL_SYSTEM_PROMPT: "Environment system prompt",
+      API_KEY: "env_api_key",
       DB_DIR: "./env_db",
       DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
       DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
@@ -57,6 +59,7 @@ describe("Configuration Parsing and Loading", () => {
     expect(config.model).toBe("env_model");
     expect(config.serverUrl).toBe("http://env-server:5000");
     expect(config.systemPrompt).toBe("Environment system prompt");
+    expect(config.apiKey).toBe("env_api_key");
     expect(config.dbDir).toBe("./env_db");
     expect(config.dbConnectionCacheSize).toBe(200);
     expect(config.dbConnectionCacheTtl).toBe(7200000);
@@ -141,6 +144,7 @@ discordSlowModeInterval: 40
       CHAT_THYME_MODEL: "env_model",
       MODEL_SERVER_URL: "http://env-server:5000",
       MODEL_SYSTEM_PROMPT: "Environment system prompt",
+      API_KEY: "env_api_key",
       DB_DIR: "./env_db",
       DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
       DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
@@ -152,6 +156,7 @@ discordSlowModeInterval: 40
     expect(config.model).toBe("cli_model");
     expect(config.serverUrl).toBe("http://cli-server:6000");
     expect(config.systemPrompt).toBe("Environment system prompt");
+    expect(config.apiKey).toBe("env_api_key");
     expect(config.dbDir).toBe("./env_db");
     expect(config.dbConnectionCacheSize).toBe(200);
     expect(config.dbConnectionCacheTtl).toBe(7200000);
@@ -193,6 +198,7 @@ discordSlowModeInterval: 40
       CHAT_THYME_MODEL: "env_model_value",
       MODEL_SERVER_URL: "http://env-server-value:5000",
       MODEL_SYSTEM_PROMPT: "Environment system prompt value",
+      API_KEY: "env_api_key_value",
       DB_DIR: "./env_db_value",
       DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
       DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
@@ -206,6 +212,7 @@ discordSlowModeInterval: 40
     expect(config.model).toBe("cli_model_value");
     expect(config.serverUrl).toBe("http://cli-server:6000");
     expect(config.systemPrompt).toBe("Environment system prompt value");
+    expect(config.apiKey).toBe("env_api_key_value");
     expect(config.dbDir).toBe("./env_db_value");
     expect(config.dbConnectionCacheSize).toBe(200);
     expect(config.dbConnectionCacheTtl).toBe(7200000);

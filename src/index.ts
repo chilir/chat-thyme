@@ -1,7 +1,7 @@
 // src/index.ts
 
 import { Client, GatewayIntentBits } from "discord.js";
-import { Ollama as OllamaClient } from "ollama";
+import OpenAI from "openai";
 import { parseConfig } from "./config";
 import { initUserDbCache } from "./db";
 import { setupSignalHandlers } from "./signal-handlers";
@@ -13,8 +13,9 @@ const main = () => {
 
   const config = parseConfig();
 
-  const ollamaClient = new OllamaClient({
-    host: config.serverUrl,
+  const modelClient = new OpenAI({
+    baseURL: config.serverUrl,
+    apiKey: config.apiKey,
   });
   const discordClient = new Client({
     intents: [
@@ -24,7 +25,7 @@ const main = () => {
     ],
   });
 
-  setupDiscordBot(discordClient, ollamaClient, config, userDbCache);
+  setupDiscordBot(discordClient, modelClient, config, userDbCache);
   discordClient.login(config.discordBotToken);
 };
 

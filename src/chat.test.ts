@@ -2,7 +2,7 @@
 
 import type { Database } from "bun:sqlite";
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import type { Message as ChatMessage, ChatResponse, Ollama } from "ollama";
+import type OpenAI from "openai";
 import tmp from "tmp";
 import {
   getChatHistoryFromDb,
@@ -14,7 +14,7 @@ import type { dbCache } from "./interfaces";
 
 describe("Chat Module", () => {
   let mockDb: Database;
-  let mockOllamaClient: Ollama;
+  let mockOpenAIClient: OpenAI;
   let mockDbCache: dbCache;
   let mockConfig: ChatThymeConfig;
   let tempDbDir: string;
@@ -24,27 +24,38 @@ describe("Chat Module", () => {
     tempDbDir = tmp.dirSync({ unsafeCleanup: true }).name;
 
     // Mock Database
-    const defaultMockMessages: ChatMessage[] = [
+    const defaultMockMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "user", content: "Hello" },
       { role: "assistant", content: "Hi there" },
     ];
     mockDb = {
       query: mock(() => ({
-        all: mock((): ChatMessage[] => defaultMockMessages),
+        all: mock((): OpenAI.Chat.ChatCompletionMessageParam[] => defaultMockMessages),
       })),
       run: mock(() => {}),
     } as unknown as Database;
 
-    // Mock Ollama client
-    mockOllamaClient = {
-      chat: mock(async () => ({
-        message: {
-          role: "assistant",
-          content: "Mock response",
-        },
-        created_at: new Date().toISOString(),
-      })),
-    } as unknown as Ollama;
+    // Mock OpenAI client
+    mockOpenAIClient = {
+      chat: {
+        completions: {
+          create: mock(async () => ({
+            id: 'mock-id',
+            object: 'chat.completion',
+            created: Date.now(),
+            model: 'mock-model',
+            choices: [{
+              index: 0,
+              message: {
+                role: "assistant",
+                content: "Mock response"
+              },
+              finish_reason: "stop"
+            }],
+          }))
+        }
+      }
+    } as unknown as OpenAI;
 
     // Mock dbCache
     mockDbCache = {
@@ -66,7 +77,7 @@ describe("Chat Module", () => {
   describe("getChatHistoryFromDb", () => {
     it("should return chat history with system prompt for empty history", async () => {
       mockDb.query = mock(() => ({
-        all: mock((): ChatMessage[] => []),
+        all: mock((): OpenAI.Chat.ChatCompletionMessageParam[] => []),
         get: mock(() => null),
         run: mock(() => {}),
         values: mock(() => []),
@@ -99,12 +110,12 @@ describe("Chat Module", () => {
     });
 
     it("should prepend system prompt to existing chat history", async () => {
-      const mockMessages: ChatMessage[] = [
+      const mockMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
         { role: "user", content: "Hello" },
         { role: "assistant", content: "Hi there" },
       ];
       mockDb.query = mock(() => ({
-        all: mock((): ChatMessage[] => structuredClone(mockMessages)),
+        all: mock((): OpenAI.Chat.ChatCompletionMessageParam[] => structuredClone(mockMessages)),
       })) as unknown as Database["query"];
 
       const history = await getChatHistoryFromDb(
@@ -122,8 +133,8 @@ describe("Chat Module", () => {
       });
       console.log(history[1]);
       console.log(mockMessages[0]);
-      expect(history[1]).toEqual(mockMessages[0] as ChatMessage);
-      expect(history[2]).toEqual(mockMessages[1] as ChatMessage);
+      expect(history[1]).toEqual(mockMessages[0] as OpenAI.Chat.ChatCompletionMessageParam);
+      expect(history[2]).toEqual(mockMessages[1] as OpenAI.Chat.ChatCompletionMessageParam);
     });
 
     it("should handle database query errors", async () => {
@@ -165,7 +176,7 @@ describe("Chat Module", () => {
     it("should process message and return response", async () => {
       const response = await processUserMessage(
         "user123",
-        mockOllamaClient,
+        mockOpenAIClient,
         "chat456",
         "Test message",
         new Date(),
@@ -175,18 +186,18 @@ describe("Chat Module", () => {
       );
 
       expect(response).toBe("Mock response");
-      expect(mockOllamaClient.chat).toHaveBeenCalled();
+      expect(mockOpenAIClient.chat.completions.create).toHaveBeenCalled();
     });
 
     it("should handle errors gracefully", async () => {
-      mockOllamaClient.chat = mock(() => {
+      mockOpenAIClient.chat.completions.create = mock(() => {
         throw new Error("API Error");
       });
 
       expect(
         processUserMessage(
           "user123",
-          mockOllamaClient,
+          mockOpenAIClient,
           "chat456",
           "Test message",
           new Date(),

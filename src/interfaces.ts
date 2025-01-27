@@ -3,12 +3,20 @@
 import type { Database } from "bun:sqlite";
 import type { Mutex } from "async-mutex";
 import type { Message as DiscordMessage } from "discord.js";
-import type { Message as ChatMessage, Options as OllamaOptions } from "ollama";
+import type OpenAI from "openai";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
-export interface OllamaChatPrompt {
+export interface ChatPrompt {
   modelName: string;
-  messages: ChatMessage[];
-  options: Partial<OllamaOptions>;
+  messages: ChatCompletionMessageParam[];
+}
+
+export interface ChatParameters
+  extends OpenAI.Chat.ChatCompletionCreateParamsNonStreaming {
+  top_k?: number | null;
+  repeat_penalty?: number | null;
+  min_p?: number | null;
+  top_a?: number | null;
 }
 
 export interface ChatIdExistence {
@@ -31,7 +39,7 @@ export interface DbCacheEntry {
 export interface ChatThreadInfo {
   chatId: string;
   userId: string;
-  modelOptions: Partial<OllamaOptions>;
+  modelOptions: Partial<ChatParameters>;
 }
 
 export interface ChatMessageQueue {

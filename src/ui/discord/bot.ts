@@ -9,7 +9,7 @@ import {
   type TextChannel,
   type ThreadChannel,
 } from "discord.js";
-import type { Ollama as OllamaClient, Options as OllamaOptions } from "ollama";
+import type OpenAI from "openai";
 import pRetry from "p-retry";
 import {
   adjectives,
@@ -23,6 +23,7 @@ import { getOrInitUserDb, releaseUserDb } from "../../db";
 import type {
   ChatIdExistence,
   ChatMessageQueue,
+  ChatParameters,
   ChatThreadInfo,
   dbCache,
 } from "../../interfaces";
@@ -64,7 +65,7 @@ const startArchivedThreadEviction = (
 
 export const setupDiscordBot = (
   discordClient: DiscordClient,
-  ollamaClient: OllamaClient,
+  modelClient: OpenAI,
   config: ChatThymeConfig,
   userDbCache: dbCache,
 ) => {
@@ -145,7 +146,7 @@ ${interaction.user.tag}, Options: ${JSON.stringify(interaction.options.data)}`,
         await handleUserMessage(
           chatMessageQueues,
           discordMessage,
-          ollamaClient,
+          modelClient,
           chatThreadInfo.chatId,
           chatThreadInfo.modelOptions,
           chatThreadInfo.userId,
@@ -162,26 +163,32 @@ const chatIdentifierExistenceQuery =
 
 const getModelOptions = (
   interaction: ChatInputCommandInteraction,
-): Partial<OllamaOptions> => {
-  const temperature = interaction.options.getNumber("temperature") ?? undefined;
-  const numCtx = interaction.options.getInteger("num_ctx") ?? undefined;
-  const topK = interaction.options.getNumber("top_k") ?? undefined;
-  const topP = interaction.options.getNumber("top_p") ?? undefined;
-  const repeatPenalty =
-    interaction.options.getNumber("repeat_penalty") ?? undefined;
+): Partial<ChatParameters> & {
+  top_k: number | null;
+} => {
   const frequencyPenalty =
-    interaction.options.getNumber("frequency_penalty") ?? undefined;
+    interaction.options.getNumber("frequency_penalty") ?? null;
+  const maxTokens = interaction.options.getInteger("max_tokens") ?? null;
+  const minP = interaction.options.getNumber("min_p") ?? null;
+  const repeatPenalty = interaction.options.getNumber("repeat_penalty") ?? null;
+  const temperature = interaction.options.getNumber("temperature") ?? null;
+  const topA = interaction.options.getNumber("top_a") ?? null;
+  const topK = interaction.options.getNumber("top_k") ?? null;
+  const topP = interaction.options.getNumber("top_p") ?? null;
+
   const presencePenalty =
-    interaction.options.getNumber("presence_penalty") ?? undefined;
+    interaction.options.getNumber("presence_penalty") ?? null;
 
   return {
+    frequency_penalty: frequencyPenalty,
+    max_tokens: maxTokens,
+    min_p: minP,
+    presence_penalty: presencePenalty,
+    repeat_penalty: repeatPenalty,
     temperature: temperature,
+    top_a: topA,
     top_k: topK,
     top_p: topP,
-    repeat_penalty: repeatPenalty,
-    frequency_penalty: frequencyPenalty,
-    presence_penalty: presencePenalty,
-    num_ctx: numCtx,
   };
 };
 
@@ -195,11 +202,11 @@ const createDiscordThread = async (
   await interaction.deferReply(); // Defer reply at the beginning
 
   // Get user specified Discord thread properties
+  const autoArchiveMinutes =
+    interaction.options.getInteger("auto_archive_minutes") ?? 60;
   const threadName = interaction.options.getString("thread_name")
     ? `(${chatIdentifier}) ${interaction.options.getString("thread_name")}`
     : `Chat with ${interaction.user.username}: ${chatIdentifier}`;
-  const autoArchiveMinutes =
-    interaction.options.getInteger("auto_archive_minutes") ?? 60;
 
   // Define the retryable operation (thread creation logic)
   const operation = async () => {
@@ -368,9 +375,9 @@ const handleResumeChatCommand = async (
 const handleUserMessage = async (
   chatMessageQueues: Map<string, ChatMessageQueue>,
   discordMessage: DiscordMessage,
-  ollamaClient: OllamaClient,
+  modelClient: OpenAI,
   chatIdentifier: string,
-  modelOptions: Partial<OllamaOptions>,
+  modelOptions: Partial<ChatParameters>,
   userId: string,
   config: ChatThymeConfig,
   userDbCache: dbCache,
@@ -382,7 +389,7 @@ const handleUserMessage = async (
     startQueueWorker(
       chatMessageQueues,
       chatIdentifier,
-      ollamaClient,
+      modelClient,
       modelOptions,
       userId,
       config,
@@ -399,8 +406,8 @@ const handleUserMessage = async (
 const startQueueWorker = (
   chatMessageQueues: Map<string, ChatMessageQueue>,
   chatIdentifier: string,
-  ollamaClient: OllamaClient,
-  modelOptions: Partial<OllamaOptions>,
+  modelClient: OpenAI,
+  modelOptions: Partial<ChatParameters>,
   userId: string,
   config: ChatThymeConfig,
   userDbCache: dbCache,
@@ -433,7 +440,7 @@ const startQueueWorker = (
 
           await processMessageFromQueue(
             discordMessage,
-            ollamaClient,
+            modelClient,
             chatIdentifier,
             modelOptions,
             userId,
@@ -458,9 +465,9 @@ const startQueueWorker = (
 
 const processMessageFromQueue = async (
   discordMessage: DiscordMessage,
-  ollamaClient: OllamaClient,
+  modelClient: OpenAI,
   chatIdentifier: string,
-  modelOptions: Partial<OllamaOptions>,
+  modelOptions: Partial<ChatParameters>,
   userId: string,
   config: ChatThymeConfig,
   userDbCache: dbCache,
@@ -468,7 +475,7 @@ const processMessageFromQueue = async (
   try {
     const response = await processUserMessage(
       userId,
-      ollamaClient,
+      modelClient,
       chatIdentifier,
       discordMessage.content,
       discordMessage.createdAt,
