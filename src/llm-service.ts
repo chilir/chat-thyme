@@ -1,7 +1,17 @@
 // src/llm-service.ts
 
 import type { OpenAI } from "openai";
-import type { ChatPrompt } from "./interfaces";
+import type { ChatPrompt, ChatResponse } from "./interfaces";
+
+const validateResponse = (response: ChatResponse): void => {
+  if (response.error) {
+    console.error(response.error);
+    console.error(`Error metadata: ${response.error.metadata}`);
+    throw new Error(
+      `Error during model interaction: ${response.error.code} - ${response.error.message}`,
+    );
+  }
+};
 
 /**
  * Sends a chat request to the model and returns the response.
@@ -23,6 +33,7 @@ export const chatWithModel = async (
       model: prompt.modelName,
       messages: prompt.messages,
     });
+    validateResponse(response);
     return response;
   } catch (error) {
     console.error("Error during model interaction:", error);
