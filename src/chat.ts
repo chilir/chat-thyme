@@ -32,7 +32,7 @@ export const getChatHistoryFromDb = async (
       SELECT role, content
       FROM chat_messages
       WHERE chat_id = ?
-      ORDER BY timestamp ASC
+      ORDER BY id ASC
     `)
       .all(chatId) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
   } catch (error) {
@@ -127,6 +127,8 @@ export const processUserMessage = async (
   }
 
   let response: OpenAI.Chat.ChatCompletion;
+  let responseReasoning = "";
+  let responseContent = "";
   try {
     const currentChatMessages = await getChatHistoryFromDb(
       userDb,
@@ -138,15 +140,36 @@ export const processUserMessage = async (
     currentChatMessages.push({ role: "user", content: discordMessageContent });
 
     // could take a while, don't hold userDbCache lock here
-    response = await chatWithModel(modelClient as OpenAI, {
+    response = await chatWithModel(modelClient, {
       modelName: config.model,
       messages: currentChatMessages,
       ...options,
     });
+    console.debug(currentChatMessages);
+    console.debug(response);
+    console.debug(response.choices);
+
+    for (const choice of response.choices) {
+      if (!responseReasoning) {
+        if ("reasoning" in choice.message && choice.message.reasoning) {
+          responseReasoning = choice.message.reasoning as string;
+        } else if (
+          "reasoning_content" in choice.message &&
+          choice.message.reasoning_content
+        ) {
+          responseReasoning = choice.message.reasoning_content as string;
+        }
+      }
+
+      if (!responseContent && choice.message.content) {
+        responseContent = choice.message.content;
+        break;
+      }
+    }
 
     currentChatMessages.push({
       role: "assistant",
-      content: response.choices[0]?.message.content,
+      content: responseContent,
     });
 
     await saveChatMessageToDb(
@@ -162,8 +185,8 @@ export const processUserMessage = async (
       userId,
       chatId,
       "assistant",
-      response.choices[0]?.message.content as string,
-      new Date(response.created),
+      responseContent,
+      new Date(response.created * 1000),
     );
   } catch (error) {
     console.error(
@@ -174,5 +197,7 @@ export const processUserMessage = async (
   } finally {
     await releaseUserDb(userId, userDbCache);
   }
-  return response.choices[0]?.message.content as string;
+  return responseReasoning
+    ? `<thinking>\n${responseReasoning}</thinking>\n${responseContent}`
+    : responseContent;
 };
