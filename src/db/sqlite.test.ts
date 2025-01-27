@@ -15,6 +15,7 @@ const tmpDir = tmp.dirSync({
 
 const testConfig: ChatThymeConfig = {
   discordBotToken: "test-token",
+  apiKey: "ollama",
   model: "test-model",
   serverUrl: "http://localhost:11434",
   systemPrompt: "test prompt",
