@@ -1,7 +1,8 @@
 // src/llm-service.ts
 
 import type { OpenAI } from "openai";
-import type { ChatPrompt, ChatResponse } from "./interfaces";
+import type { ChatParameters, ChatPrompt, ChatResponse } from "./interfaces";
+import { TOOLS } from "./tools";
 
 const validateResponse = (response: ChatResponse): void => {
   if (response.error) {
@@ -27,11 +28,14 @@ const validateResponse = (response: ChatResponse): void => {
 export const chatWithModel = async (
   modelClient: OpenAI,
   prompt: ChatPrompt,
+  options: Partial<ChatParameters>,
 ): Promise<OpenAI.Chat.ChatCompletion> => {
   try {
     const response = await modelClient.chat.completions.create({
       model: prompt.modelName,
       messages: prompt.messages,
+      tools: TOOLS,
+      ...options,
     });
     validateResponse(response);
     return response;

@@ -5,14 +5,17 @@ import { SlashCommandBuilder } from "discord.js";
 export const startChatCommandData = new SlashCommandBuilder()
   .setName("start-chat")
   .setDescription("Start a chat with the LLM.")
-  .addIntegerOption(
-    (option) =>
-      option
-        .setName("auto_archive_minutes")
-        .setDescription("Minutes until thread auto archives")
-        .setRequired(false)
-        .setMinValue(60) // Minimum 1 hour
-        .setMaxValue(10080), // Maximum 7 days,
+  .addIntegerOption((option) =>
+    option
+      .setName("auto_archive_minutes")
+      .setDescription("Minutes until thread auto archives")
+      .setChoices(
+        { name: "One Hour", value: 60 },
+        { name: "One Day", value: 1440 },
+        { name: "Three Days", value: 4320 },
+        { name: "One Week", value: 10080 },
+      )
+      .setRequired(false),
   )
   .addNumberOption((option) =>
     option
@@ -107,9 +110,13 @@ export const resumeChatCommandData = new SlashCommandBuilder()
     option
       .setName("auto_archive_minutes")
       .setDescription("Minutes until thread auto archives")
-      .setRequired(false)
-      .setMinValue(60)
-      .setMaxValue(10080),
+      .setChoices(
+        { name: "One Hour", value: 60 },
+        { name: "One Day", value: 1440 },
+        { name: "Three Days", value: 4320 },
+        { name: "One Week", value: 10080 },
+      )
+      .setRequired(false),
   )
   .addNumberOption((option) =>
     option

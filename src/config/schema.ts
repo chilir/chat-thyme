@@ -6,6 +6,7 @@ export const defaultAppConfig = {
   model: "", // CHAT_THYME_MODEL
   serverUrl: "http://localhost:11434/v1/", // MODEL_SERVER_URL
   apiKey: "ollama", // API_KEY
+  exaApiKey: "", // EXA_API_KEY
   systemPrompt: // MODEL_SYSTEM_PROMPT
     "You are a helpful assistant interacting with the user through Discord messages.",
   dbDir: ".sqlite", // DB_DIR
@@ -25,6 +26,7 @@ export const configSchema = z.object({
     .default(defaultAppConfig.model),
   serverUrl: z.string().url().default(defaultAppConfig.serverUrl),
   apiKey: z.string().default(defaultAppConfig.apiKey),
+  exaApiKey: z.string().default(defaultAppConfig.exaApiKey),
   systemPrompt: z.string().default(defaultAppConfig.systemPrompt),
   dbDir: z.string().default(defaultAppConfig.dbDir),
   dbConnectionCacheSize: z

@@ -152,6 +152,7 @@ export const parseConfig = () => {
         ? process.env.MODEL_SERVER_URL
         : parsedFromConfig.serverUrl),
     apiKey: process.env.API_KEY ?? parsedFromConfig.apiKey,
+    exaApiKey: process.env.EXA_API_KEY ?? parsedFromConfig.exaApiKey,
     systemPrompt:
       parsedArgs.systemPrompt ??
       (process.env.MODEL_SYSTEM_PROMPT !== undefined

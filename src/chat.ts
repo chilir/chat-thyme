@@ -1,11 +1,13 @@
 // src/chat.ts
 
 import type { Database } from "bun:sqlite";
+import Exa from "exa-js";
 import type OpenAI from "openai";
 import type { ChatThymeConfig } from "./config/schema";
 import { getOrInitUserDb, releaseUserDb } from "./db/sqlite";
-import type { dbCache } from "./interfaces";
+import type { ChatParameters, dbCache } from "./interfaces";
 import { chatWithModel } from "./llm-service";
+import { processExaSearchCall } from "./tools";
 
 /**
  * Retrieves chat history for a specific user and chat from the database and
@@ -86,6 +88,61 @@ export const saveChatMessageToDb = async (
   }
 };
 
+const processToolCalls = async (
+  currentChatMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[],
+  exaClient: Exa,
+  modelClient: OpenAI,
+  config: ChatThymeConfig,
+  options: Partial<ChatParameters>,
+): Promise<string> => {
+  let response: OpenAI.Chat.ChatCompletion;
+  let responseReasoning = "";
+  let responseContent = "";
+  try {
+    const toolCallMsgs = await processExaSearchCall(toolCalls, exaClient);
+    currentChatMessages.push(...toolCallMsgs);
+    currentChatMessages.push({
+      role: "user",
+      content: "Answer my previous query based on the search results.",
+    });
+    response = await chatWithModel(
+      modelClient,
+      {
+        modelName: config.model,
+        messages: currentChatMessages,
+      },
+      options,
+    );
+    console.debug("tool call debug");
+    console.debug(currentChatMessages);
+    console.debug(response);
+    console.debug(response.choices);
+    console.debug(response.choices[0].message.content);
+    for (const choice of response.choices) {
+      if (!responseReasoning) {
+        if ("reasoning" in choice.message && choice.message.reasoning) {
+          responseReasoning = choice.message.reasoning as string;
+        } else if (
+          "reasoning_content" in choice.message &&
+          choice.message.reasoning_content
+        ) {
+          responseReasoning = choice.message.reasoning_content as string;
+        }
+      }
+
+      if (!responseContent && choice.message.content) {
+        responseContent = choice.message.content;
+        break;
+      }
+    }
+    return responseContent;
+  } catch (error) {
+    console.error("Error processing tool calls:", error);
+    throw error;
+  }
+};
+
 /**
  * Processes a user message through the OpenAI API and saves the conversation to the database.
  * Handles the entire flow of:
@@ -100,7 +157,7 @@ export const saveChatMessageToDb = async (
  * @param discordMessageContent - User message content
  * @param discordMessageTimestamp - User message timestamp
  * @param options - Additional options/params for chat completion request
- * @param config - Chat Thyme confiugration
+ * @param config - Chat Thyme configuration
  * @param userDbCache - Database connection cache
  * @returns {Promise<string>} The model's response text
  * @throws {Error} If database operations or model client API call fails
@@ -111,10 +168,11 @@ export const processUserMessage = async (
   chatId: string,
   discordMessageContent: string,
   discordMessageTimestamp: Date,
-  options: Partial<OpenAI.Chat.ChatCompletionCreateParams>,
+  options: Partial<ChatParameters>,
   config: ChatThymeConfig,
   userDbCache: dbCache,
 ): Promise<string> => {
+  const exaClient = new Exa(config.exaApiKey);
   let userDb: Database;
   try {
     userDb = await getOrInitUserDb(userId, config, userDbCache);
@@ -140,14 +198,15 @@ export const processUserMessage = async (
     currentChatMessages.push({ role: "user", content: discordMessageContent });
 
     // could take a while, don't hold userDbCache lock here
-    response = await chatWithModel(modelClient, {
-      modelName: config.model,
-      messages: currentChatMessages,
-      ...options,
-    });
+    response = await chatWithModel(
+      modelClient,
+      {
+        modelName: config.model,
+        messages: currentChatMessages,
+      },
+      options,
+    );
     console.debug(currentChatMessages);
-    console.debug(response);
-    console.debug(response.choices);
 
     for (const choice of response.choices) {
       if (!responseReasoning) {
@@ -161,11 +220,24 @@ export const processUserMessage = async (
         }
       }
 
+      if (choice.message.tool_calls) {
+        responseContent = await processToolCalls(
+          currentChatMessages,
+          choice.message.tool_calls,
+          exaClient,
+          modelClient,
+          config,
+          options,
+        );
+      }
+
       if (!responseContent && choice.message.content) {
         responseContent = choice.message.content;
         break;
       }
     }
+
+    console.debug(`Response from model: ${responseContent}`);
 
     currentChatMessages.push({
       role: "assistant",
