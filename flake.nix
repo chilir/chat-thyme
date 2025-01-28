@@ -43,22 +43,29 @@
       });
 
       packages = forEachSupportedSystem ({ pkgs }: {
-        default = pkgs.stdenv.mkDerivation {
-          name = "chat-thyme";
+        default = pkgs.stdenv.mkDerivation rec {
+          pname = "chat-thyme";
+          version = "0.1.0";
+          name = "${pname}-${version}";
+
           src = ./.;
+          nativeBuildInputs = [ pkgs.bun pkgs.makeWrapper ];
           buildInputs = [ pkgs.bun ];
           buildPhase = ''
-            bun install --no-progress --frozen-lockfile
-            bun build src/index.ts --minify --sourcemap=linked --target=bun --outdir=dist
+            export HOME=$TMPDIR
+            bun install --no-progress --frozen-lockfile || exit 1
+            bun build src/index.ts \
+              --minify \
+              --sourcemap=linked \
+              --target=bun \
+              --outdir=dist || exit 1
           '';
 
           installPhase = ''
-            mkdir -p $out/lib
+            mkdir -p $out/{lib,bin}
             cp dist/* $out/lib/
-            mkdir -p $out/bin
-            echo '#!/bin/sh' > $out/bin/app
-            echo "exec ${pkgs.bun}/bin/bun run $out/lib/index.js \"\$@\"" >> $out/bin/app
-            chmod +x $out/bin/app
+            makeWrapper ${pkgs.bun}/bin/bun $out/bin/${name} \
+              --add-flags "$out/lib/index.js"
           '';
         };
       });
