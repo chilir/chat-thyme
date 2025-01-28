@@ -6,8 +6,7 @@
   # Flake inputs
   inputs = {
     flake-schemas.url = "https://flakehub.com/f/DeterminateSystems/flake-schemas/*";
-
-    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/*";
+    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1.0.tar.gz";
   };
 
   # Flake outputs that other flakes can use
@@ -33,6 +32,7 @@
             jq
             wget
             nixpkgs-fmt
+            sqlite
           ];
 
           # A hook run every time you enter the environment
