@@ -5,48 +5,55 @@ import type { ChatThymeConfig } from "../config/schema";
 import type { DbCacheEntry, dbCache } from "../interfaces";
 
 /**
- * Initializes a new database cache for user connections.
- * Creates a new Map to store database connections, a mutex for thread safety,
- * and a placeholder for the cache maintenance interval.
+ * Creates and returns a new cache object for user database connections.
+ * The cache includes:
+ * - A Map to store active database connections
+ * - A Mutex for concurrency control
+ * - An evictionInterval reference for background cleanup
  *
- * @returns {dbCache} A new database cache object containing the cache Map,
- * mutex, and interval ID
+ * @returns {dbCache} The newly created cache object
  */
-export const initUserDbCache = () => {
+export const initUserDbCache = (): dbCache => {
   const cache = new Map<string, DbCacheEntry>();
   const mutex = new Mutex();
-  let checkIntervalId: ReturnType<typeof setInterval> | undefined;
+  let evictionInterval: ReturnType<typeof setInterval> | undefined;
 
-  return { cache, mutex, checkIntervalId };
+  return {
+    cache: cache,
+    mutex: mutex,
+    evictionInterval: evictionInterval,
+  };
 };
 
 /**
- * Starts a background task that periodically checks and evicts expired database
- * connections.
- * A database connection is considered expired if it hasn't been accessed for
- * longer than the TTL and has no active references.
+ * Launches a scheduled background task to remove stale database connections
+ * from the cache. A connection is considered stale if it hasn't been accessed
+ * for longer than the configured TTL and has no active references.
  *
- * @param {ChatThymeConfig} config - The application configuration containing
- * cache settings
- * @param {dbCache} userDbCache - The database cache to maintain
+ * @param {dbCache} userDbCache - The cache to maintain
+ * @param {number} dbConnectionCacheTtl - Milliseconds after which
+ *   inactive connections are evicted
+ * @param {number} dbConnectionCacheEvictionInterval - Interval in
+ *   milliseconds to run the eviction process
  */
 export const backgroundEvictExpiredDbs = (
-  config: ChatThymeConfig,
   userDbCache: dbCache,
+  dbConnectionCacheTtl: number,
+  dbConnectionCacheEvictionInterval: number,
 ) => {
-  if (!userDbCache.checkIntervalId) {
-    userDbCache.checkIntervalId = setInterval(async () => {
+  if (!userDbCache.evictionInterval) {
+    userDbCache.evictionInterval = setInterval(async () => {
       const release = await userDbCache.mutex.acquire();
       try {
         const now = Date.now();
         userDbCache.cache.forEach((entry, userId) => {
           if (
-            now - entry.lastAccessed > config.dbConnectionCacheTtl &&
+            now - entry.lastAccessed > dbConnectionCacheTtl &&
             entry.refCount === 0
           ) {
             console.info(
-              `TTL expired and no active references for user ${userId}. Closing \
-      database.`,
+              `TTL expired and no active references for user ${userId}. \
+Closing database.`,
             );
             entry.db.close();
             userDbCache.cache.delete(userId);
@@ -55,19 +62,18 @@ export const backgroundEvictExpiredDbs = (
       } finally {
         release();
       }
-    }, config.dbConnectionCacheCheckInterval);
+    }, dbConnectionCacheEvictionInterval);
   }
 };
 
 /**
- * Closes all database connections and clears the cache.
- * This function also stops the background cache maintenance task.
- * Should be called during application shutdown.
- * 
- * @param {dbCache} userDbCache - The database cache to clear
+ * Closes and removes all database connections from the cache.
+ * Also stops the background cleanup process if it is currently active.
+ *
+ * @param {dbCache} userDbCache - The cache structure to clear
  * @returns {Promise<void>}
  */
-export const clearUserDbCache = async (userDbCache: dbCache) => {
+export const clearUserDbCache = async (userDbCache: dbCache): Promise<void> => {
   const release = await userDbCache.mutex.acquire();
   try {
     console.info(
@@ -77,9 +83,9 @@ export const clearUserDbCache = async (userDbCache: dbCache) => {
       entry.db.close();
     }
     userDbCache.cache.clear();
-    if (userDbCache.checkIntervalId) {
-      clearInterval(userDbCache.checkIntervalId);
-      userDbCache.checkIntervalId = undefined;
+    if (userDbCache.evictionInterval) {
+      clearInterval(userDbCache.evictionInterval);
+      userDbCache.evictionInterval = undefined;
     }
   } finally {
     release();
