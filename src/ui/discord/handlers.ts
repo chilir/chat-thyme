@@ -17,7 +17,6 @@ import { getOrInitUserDb, releaseUserDb } from "../../db";
 import type {
   ChatIdExistence,
   ChatMessageQueue,
-  ChatParameters,
   ChatThreadInfo,
   dbCache,
 } from "../../interfaces";
