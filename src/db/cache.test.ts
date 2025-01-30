@@ -14,7 +14,8 @@ describe("In-Memory Database Cache", () => {
   let mockDb: Database;
   const testDbConnectionCacheTtl = 100;
   const testDbConnectionCacheEvictionInterval = 50;
-  const userId = "test-user";
+  const testUserId = "test-user";
+  const testFilePath = "test-path";
 
   beforeEach(() => {
     userDbCache = initUserDbCache();
@@ -33,8 +34,8 @@ describe("In-Memory Database Cache", () => {
 
   describe("TTL and Expiration Policies", () => {
     it("should evict expired entries", async () => {
-      userDbCache.cache.set(userId, {
-        filePath: "test-path",
+      userDbCache.cache.set(testUserId, {
+        filePath: testFilePath,
         db: mockDb,
         lastAccessed: Date.now(),
         refCount: 0,
@@ -54,8 +55,8 @@ describe("In-Memory Database Cache", () => {
     });
 
     it("should not evict entries with active references", async () => {
-      userDbCache.cache.set(userId, {
-        filePath: "test-path",
+      userDbCache.cache.set(testUserId, {
+        filePath: testFilePath,
         db: mockDb,
         lastAccessed: Date.now(),
         refCount: 1, // Active reference
@@ -75,14 +76,14 @@ describe("In-Memory Database Cache", () => {
   it("should clear all cache entries and stop maintenance", async () => {
     // Add some test entries
     const mockDb2 = new Database(":memory:");
-    userDbCache.cache.set(userId, {
-      filePath: "test-path-1",
+    userDbCache.cache.set(testUserId, {
+      filePath: testFilePath,
       db: mockDb,
       lastAccessed: Date.now(),
       refCount: 0,
     });
-    userDbCache.cache.set("test-user2", {
-      filePath: "test-path-2",
+    userDbCache.cache.set(`${testUserId}-2`, {
+      filePath: `${testFilePath}-2`,
       db: mockDb2,
       lastAccessed: Date.now(),
       refCount: 1,
@@ -100,8 +101,8 @@ describe("In-Memory Database Cache", () => {
 
   describe("Background Maintenance Behavior", () => {
     it("should handle rapid maintenance cycles", async () => {
-      userDbCache.cache.set(userId, {
-        filePath: "test-path",
+      userDbCache.cache.set(testUserId, {
+        filePath: testFilePath,
         db: mockDb,
         lastAccessed: Date.now(),
         refCount: 0,
@@ -124,9 +125,10 @@ describe("In-Memory Database Cache", () => {
 
     it("should handle future lastAccessed timestamps", async () => {
       const futureTime = Date.now() + 1000000; // Future timestamp
+      const futureUserId = "future-user";
 
-      userDbCache.cache.set("future-user", {
-        filePath: "test-path",
+      userDbCache.cache.set(futureUserId, {
+        filePath: testFilePath,
         db: mockDb,
         lastAccessed: futureTime,
         refCount: 0,
@@ -140,7 +142,7 @@ describe("In-Memory Database Cache", () => {
 
       // Entry should still be in cache since its lastAccessed is in the future
       expect(userDbCache.cache.size).toBe(1);
-      expect(userDbCache.cache.has("future-user")).toBe(true);
+      expect(userDbCache.cache.has(futureUserId)).toBe(true);
     });
   });
 
@@ -153,8 +155,8 @@ describe("In-Memory Database Cache", () => {
 
       // Setup initial cache entries
       mockDbs.forEach((db, i) => {
-        userDbCache.cache.set(`user${i}`, {
-          filePath: `test-path-${i}`,
+        userDbCache.cache.set(`${testUserId}-${i}`, {
+          filePath: `${testFilePath}-${i}`,
           db,
           lastAccessed: Date.now(),
           refCount: 0,
@@ -180,8 +182,8 @@ describe("In-Memory Database Cache", () => {
 
       // Rapid add/remove operations
       for (let i = 0; i < operations; i++) {
-        userDbCache.cache.set(`user${i}`, {
-          filePath: `test-path-${i}`,
+        userDbCache.cache.set(`${testUserId}-${i}`, {
+          filePath: `${testFilePath}-${i}`,
           db: mockDb,
           lastAccessed: Date.now(),
           refCount: 0,
@@ -202,8 +204,8 @@ describe("In-Memory Database Cache", () => {
 
     // Add many entries
     for (let i = 0; i < entriesCount; i++) {
-      userDbCache.cache.set(`user${i}`, {
-        filePath: `test-path-${i}`,
+      userDbCache.cache.set(`${testUserId}-${i}`, {
+        filePath: `${testFilePath}-${i}`,
         db: new Database(":memory:"),
         lastAccessed: Date.now(),
         refCount: 0,

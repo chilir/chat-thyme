@@ -1,7 +1,6 @@
 // src/db/cache.ts
 
 import { Mutex } from "async-mutex";
-import type { ChatThymeConfig } from "../config/schema";
 import type { DbCacheEntry, dbCache } from "../interfaces";
 
 /**

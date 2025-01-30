@@ -3,31 +3,18 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import tmp from "tmp";
-import type { ChatThymeConfig } from "../config/schema";
-import type { dbCache } from "../interfaces";
+import type { DbCacheEntry, dbCache } from "../interfaces";
 import { clearUserDbCache, initUserDbCache } from "./cache";
 import { getOrInitUserDb, releaseUserDb } from "./sqlite";
 
-const tmpDir = tmp.dirSync({
-  prefix: "chat-thyme-test-",
-  unsafeCleanup: true,
-});
-
-const testConfig: ChatThymeConfig = {
-  discordBotToken: "test-token",
-  apiKey: "ollama",
-  model: "test-model",
-  serverUrl: "http://localhost:11434",
-  systemPrompt: "test prompt",
-  dbDir: tmpDir.name,
-  dbConnectionCacheSize: 2,
-  dbConnectionCacheTtl: 1000,
-  dbConnectionCacheCheckInterval: 100,
-  discordSlowModeInterval: 10,
-};
-
 describe("SQLite Database Operations", () => {
+  const userId = "test-user";
   let userDbCache: dbCache;
+  const tmpDir = tmp.dirSync({
+    prefix: "chat-thyme-test-",
+    unsafeCleanup: true,
+  });
+  const testDbConnectionCacheSize = 2;
 
   beforeEach(() => {
     userDbCache = initUserDbCache();
@@ -39,14 +26,17 @@ describe("SQLite Database Operations", () => {
 
   describe("Basic Database Operations", () => {
     it("should initialize new database for user", async () => {
-      const userId = "test-user-1";
-      const db = await getOrInitUserDb(userId, testConfig, userDbCache);
-
+      const db = await getOrInitUserDb(
+        userId,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
       expect(db).toBeInstanceOf(Database);
       expect(userDbCache.cache.has(userId)).toBe(true);
 
-      const cacheEntry = userDbCache.cache.get(userId);
-      expect(cacheEntry?.refCount).toBe(1);
+      const cacheEntry = userDbCache.cache.get(userId) as DbCacheEntry;
+      expect(cacheEntry.refCount).toBe(1);
 
       // Verify schema creation
       const tables = db
@@ -65,34 +55,55 @@ describe("SQLite Database Operations", () => {
     });
 
     it("should reuse cached database connection", async () => {
-      const userId = "test-user-2";
-
-      // First initialization
-      const db1 = await getOrInitUserDb(userId, testConfig, userDbCache);
+      const db1 = await getOrInitUserDb(
+        userId,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
 
       // Second request for same user
-      const db2 = await getOrInitUserDb(userId, testConfig, userDbCache);
+      const db2 = await getOrInitUserDb(
+        userId,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
 
       expect(db1).toBe(db2);
-      expect(userDbCache.cache.get(userId)?.refCount).toBe(2);
+      const cacheEntry = userDbCache.cache.get(userId) as DbCacheEntry;
+      expect(cacheEntry.refCount).toBe(2);
     });
 
     it("should handle database connection cache size limit", async () => {
-      const userId1 = "test-user-3";
-      const userId2 = "test-user-4";
-      const userId3 = "test-user-5";
+      const userId2 = `${userId}-2`;
+      const userId3 = `${userId}-3`;
 
       // Fill cache to limit
-      await getOrInitUserDb(userId1, testConfig, userDbCache);
-      await getOrInitUserDb(userId2, testConfig, userDbCache);
+      await getOrInitUserDb(
+        userId,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
+      await getOrInitUserDb(
+        userId2,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
 
-      // Release first connection
-      await releaseUserDb(userId1, userDbCache);
+      await releaseUserDb(userId, userDbCache);
 
-      // Add another connection that should evict userId1
-      await getOrInitUserDb(userId3, testConfig, userDbCache);
+      // Add another connection that should evict user 1
+      await getOrInitUserDb(
+        userId3,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
 
-      expect(userDbCache.cache.has(userId1)).toBe(false);
+      expect(userDbCache.cache.has(userId)).toBe(false);
       expect(userDbCache.cache.has(userId2)).toBe(true);
       expect(userDbCache.cache.has(userId3)).toBe(true);
       expect(userDbCache.cache.size).toBe(2);
@@ -100,10 +111,13 @@ describe("SQLite Database Operations", () => {
   });
 
   it("should handle database corruption", async () => {
-    const userId = "test-corrupt-user";
-    const db = await getOrInitUserDb(userId, testConfig, userDbCache);
+    const db = await getOrInitUserDb(
+      userId,
+      userDbCache,
+      tmpDir.name,
+      testDbConnectionCacheSize,
+    );
 
-    // Simulate corruption by executing invalid SQL
     expect(() => db.prepare("CORRUPTED SQL STATEMENT").run()).toThrow();
 
     // Database should still be usable
@@ -113,16 +127,27 @@ describe("SQLite Database Operations", () => {
 
   describe("Multi-threaded Access and Race Conditions", () => {
     it("should handle concurrent database access", async () => {
-      const userId = "test-concurrent-user";
-      const firstDb = await getOrInitUserDb(userId, testConfig, userDbCache);
+      const firstDb = await getOrInitUserDb(
+        userId,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
       if (!firstDb) throw new Error("First database connection is undefined");
 
       const concurrentAccesses = 10;
 
-      // Create multiple concurrent requests
+      // Create multiple concurrent requests for the first db
       const requests = Array(concurrentAccesses)
         .fill(null)
-        .map(() => getOrInitUserDb(userId, testConfig, userDbCache));
+        .map(() =>
+          getOrInitUserDb(
+            userId,
+            userDbCache,
+            tmpDir.name,
+            testDbConnectionCacheSize,
+          ),
+        );
 
       const results = await Promise.all(requests);
 
@@ -139,28 +164,36 @@ describe("SQLite Database Operations", () => {
     });
 
     it("should handle concurrent cache eviction", async () => {
-      const baseUserId = "test-concurrent-evict-user";
       const promises = [];
 
       // Create more concurrent connections than cache size
-      for (let i = 0; i < testConfig.dbConnectionCacheSize + 2; i++) {
+      for (let i = 0; i < testDbConnectionCacheSize + 2; i++) {
         promises.push(async () => {
-          await getOrInitUserDb(`${baseUserId}-${i}`, testConfig, userDbCache);
-          await releaseUserDb(`${baseUserId}-${i}`, userDbCache);
+          await getOrInitUserDb(
+            `${userId}-${i}`,
+            userDbCache,
+            tmpDir.name,
+            testDbConnectionCacheSize,
+          );
+          await releaseUserDb(`${userId}-${i}`, userDbCache);
         });
       }
 
       await Promise.all(promises);
       expect(userDbCache.cache.size).toBeLessThanOrEqual(
-        testConfig.dbConnectionCacheSize,
+        testDbConnectionCacheSize,
       );
     });
   });
 
   describe("Database Schema and Constraints", () => {
     it("should create all required indexes", async () => {
-      const userId = "test-schema-user";
-      const db = await getOrInitUserDb(userId, testConfig, userDbCache);
+      const db = await getOrInitUserDb(
+        userId,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
 
       const indexes = db
         .prepare(`
@@ -177,8 +210,12 @@ describe("SQLite Database Operations", () => {
     });
 
     it("should enforce schema constraints", async () => {
-      const userId = "test-constraints-user";
-      const db = await getOrInitUserDb(userId, testConfig, userDbCache);
+      const db = await getOrInitUserDb(
+        userId,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
 
       // Test NOT NULL constraints
       expect(() =>

@@ -3,31 +3,35 @@
 import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { ChatThymeConfig } from "../config/schema";
 import type { DbCacheEntry, dbCache } from "../interfaces";
 
 /**
  * Gets an existing database connection from cache or initializes a new one.
- * Implements an LRU cache with reference counting for database connections.
  * Creates necessary directory structure and database schema if they don't
- * exist.
+ * exist. The schema includes a chat_messages table and an index for efficient
+ * queries. LRU cache eviction is done on a best-effort basis depending on
+ * whether or not any database connections are in use.
  *
  * @param {string} userId - The Discord user ID to get/create database for
- * @param {ChatThymeConfig} config - Application configuration
- * @param {dbCache} userDbCache - The database connection cache
+ * @param {dbCache} userDbCache - The database connection cache with mutex and
+ *   eviction settings
+ * @param {string} dbDir - The directory path where database files are stored
+ * @param {number} dbConnectionCacheSize - Maximum number of database
+ *   connections to keep in cache
  * @returns {Promise<Database>} The database connection
- * @throws Will throw an error if database operations fail
+ * @throws Will throw an error if database directory creation, file operations,
+ *   or schema initialization fails
  */
 export const getOrInitUserDb = async (
   userId: string,
-  config: ChatThymeConfig,
   userDbCache: dbCache,
-) => {
+  dbDir: string,
+  dbConnectionCacheSize: number,
+): Promise<Database> => {
   const getCachedDbRelease = await userDbCache.mutex.acquire();
   try {
     const cachedDb = userDbCache.cache.get(userId);
     if (cachedDb) {
-      // Update last accessed and move to the end of the Map (LRU)
       cachedDb.lastAccessed = Date.now();
       cachedDb.refCount++;
       userDbCache.cache.delete(userId);
@@ -40,10 +44,10 @@ export const getOrInitUserDb = async (
 
   // will do nothing if dir already exists
   try {
-    await mkdir(path.resolve(config.dbDir), { recursive: true });
+    await mkdir(path.resolve(dbDir), { recursive: true });
   } catch (error) {
     console.error(
-      `Error creating/resolving database directory ${config.dbDir}:`,
+      `Error creating/resolving database directory ${dbDir}:`,
       error,
     );
     throw error;
@@ -53,14 +57,14 @@ export const getOrInitUserDb = async (
   let db: Database;
   let dbPath: string;
   try {
-    dbPath = path.resolve(`${config.dbDir}/chat_history_${userId}.db`);
+    dbPath = path.resolve(`${dbDir}/chat_history_${userId}.db`);
     console.info(
       `No existing database found in cache (or TTL expired) for user ${userId}.
 Initializing new database object from ${dbPath}.`,
     );
     db = new Database(dbPath, { create: true });
   } catch (error) {
-    const dbPath = path.resolve(`${config.dbDir}/chat_history_${userId}.db`);
+    const dbPath = path.resolve(`${dbDir}/chat_history_${userId}.db`);
     console.error(`Error creating/opening database file at ${dbPath}`, error);
     throw error;
   }
@@ -97,18 +101,19 @@ Initializing new database object from ${dbPath}.`,
   const addDbToCacheRelease = await userDbCache.mutex.acquire();
   try {
     // Best effort LRU cache eviction
-    if (userDbCache.cache.size >= config.dbConnectionCacheSize) {
+    if (userDbCache.cache.size >= dbConnectionCacheSize) {
       // Find the least recently used entry with refCount 0
       let keyToEvict: string | undefined;
+      let entryToEvict: DbCacheEntry | undefined;
       for (const [k, v] of userDbCache.cache.entries()) {
         if (v.refCount === 0) {
           keyToEvict = k;
+          entryToEvict = v;
           break;
         }
       }
 
-      if (keyToEvict) {
-        const entryToEvict = userDbCache.cache.get(keyToEvict) as DbCacheEntry;
+      if (keyToEvict && entryToEvict) {
         console.info(
           `Cache full. Evicting database connection for user ${keyToEvict}.`,
         );
@@ -117,7 +122,6 @@ Initializing new database object from ${dbPath}.`,
       }
     }
 
-    // Add to cache
     userDbCache.cache.set(userId, {
       filePath: dbPath,
       db: db,
@@ -141,7 +145,10 @@ Initializing new database object from ${dbPath}.`,
  * @param {dbCache} userDbCache - The database connection cache
  * @returns {Promise<void>}
  */
-export const releaseUserDb = async (userId: string, userDbCache: dbCache) => {
+export const releaseUserDb = async (
+  userId: string,
+  userDbCache: dbCache,
+): Promise<void> => {
   const release = await userDbCache.mutex.acquire();
   try {
     const cachedDbEntry = userDbCache.cache.get(userId);
