@@ -1,9 +1,10 @@
 // src/index.ts
 
 import { Client, GatewayIntentBits } from "discord.js";
+import Exa from "exa-js";
 import OpenAI from "openai";
 import { parseConfig } from "./config";
-import { initUserDbCache } from "./db";
+import { backgroundEvictExpiredDbs, initUserDbCache } from "./db";
 import { setupSignalHandlers } from "./signal-handlers";
 import { setupDiscordBot } from "./ui/discord";
 
@@ -12,6 +13,11 @@ const main = () => {
   setupSignalHandlers(userDbCache);
 
   const config = parseConfig();
+  backgroundEvictExpiredDbs(
+    userDbCache,
+    config.dbConnectionCacheTtl,
+    config.dbConnectionCacheEvictionInterval,
+  );
 
   const modelClient = new OpenAI({
     baseURL: config.serverUrl,
@@ -25,8 +31,17 @@ const main = () => {
       GatewayIntentBits.MessageContent,
     ],
   });
+  const exaClient = config.useTools ? new Exa(config.exaApiKey) : undefined;
 
-  setupDiscordBot(discordClient, modelClient, config, userDbCache);
+  setupDiscordBot(
+    {
+      modelClient: modelClient,
+      discordClient: discordClient,
+      exaClient: exaClient,
+    },
+    config,
+    userDbCache,
+  );
   discordClient.login(config.discordBotToken);
 };
 
