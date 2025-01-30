@@ -2,14 +2,17 @@
 
 import { beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import tmp from "tmp";
 import { ZodError } from "zod";
 import { parseConfig } from "./parse";
 import { defaultAppConfig } from "./schema";
 
+tmp.setGracefulCleanup();
+
 describe("Configuration Parsing and Loading", () => {
   const originalEnv = { ...process.env };
+  const tmpDir = tmp.dirSync({ unsafeCleanup: true }).name;
 
   beforeEach(() => {
     process.env = { ...originalEnv };
@@ -125,8 +128,7 @@ describe("Configuration Parsing and Loading", () => {
   });
 
   it("should load YAML config file and be overridden by CLI and env config", () => {
-    const tempDir = os.tmpdir();
-    const configFilePath = path.join(tempDir, "test-config.yaml");
+    const configFilePath = path.join(tmpDir, "test-config.yaml");
     const configFileContent = `
 model: yaml_model
 serverUrl: http://yaml-server:7000
@@ -186,8 +188,7 @@ discordSlowModeInterval: 40
 
   it("should load config from all sources with correct priority", () => {
     const originalArgv = process.argv;
-    const tempDir = os.tmpdir();
-    const configFilePath = path.join(tempDir, "test-config.yaml");
+    const configFilePath = path.join(tmpDir, "test-config.yaml");
     const configFileContent = `
 model: yaml_model_value
 serverUrl: http://yaml-server-value:7000
