@@ -1,29 +1,34 @@
 // src/config/parse.ts
 
 import fs from "node:fs";
-import yaml from "yaml";
+import path from "node:path";
+import YAML from "yaml";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { type ChatThymeConfig, configSchema, defaultAppConfig } from "./schema";
 
 /**
- * Parses command line arguments using yargs to configure application settings.
+ * Parses command line arguments using `yargs` to configure application settings.
  *
- * @returns {Object} An object containing parsed command line arguments with the
- * following properties:
+ * @returns {ReturnType<typeof argv.parseSync>} An object containing parsed
+ *   command line arguments with the following properties:
  *   - config: Path to YAML configuration file
- *   - model: Model name to use
+ *   - model: Model name
  *   - serverUrl: URL of the model server
- *   - systemPrompt: System prompt for the language model
+ *   - useTools: Whether to enable tool usage
+ *   - apiKey: API key for the model server
+ *   - exaApiKey: API key for Exa search
+ *   - systemPrompt: System prompt
  *   - dbDir: Directory for SQLite database files
  *   - dbConnectionCacheSize: Maximum database connection cache size
- *   - dbConnectionCacheTtl: TTL for database cache entries in milliseconds
- *   - dbConnectionCacheCheckInterval: Interval to check expired cache entries
- *     in milliseconds
+ *   - dbConnectionCacheTtl: TTL for database connection cache entries in
+ *     milliseconds
+ *   - dbConnectionCacheEvictionInterval: Interval to evict expired cache
+ *     entries in milliseconds
  *   - discordSlowModeInterval: Slow mode interval for Discord messages in
  *     seconds
  */
-const loadFromArgs = () => {
+const loadFromArgs = (): ReturnType<typeof argv.parseSync> => {
   const argv = yargs(hideBin(process.argv))
     .alias("h", "help")
     .alias("v", "version")
@@ -42,6 +47,12 @@ const loadFromArgs = () => {
       type: "string",
       description: `The URL of the model server (optional, default: \
 "${defaultAppConfig.serverUrl}")`,
+    })
+    .option("use-tools", {
+      alias: "t",
+      type: "boolean",
+      description: `Whether or not to use tools (optional, default: \
+"${defaultAppConfig.useTools}"`,
     })
     .option("system-prompt", {
       alias: "p",
@@ -62,19 +73,21 @@ default: "${defaultAppConfig.dbDir}")`,
     })
     .option("db-connection-cache-ttl", {
       type: "number",
-      description: `The time-to-live (TTL) in milliseconds for database cache \
-entries (optional, default: ${defaultAppConfig.dbConnectionCacheTtl})`,
+      description: `The time-to-live (TTL) in milliseconds for database \
+connection cache entries (optional, default: \
+${defaultAppConfig.dbConnectionCacheTtl})`,
     })
-    .option("db-connection-cache-check-interval", {
+    .option("db-connection-cache-eviction-interval", {
       type: "number",
-      description: `The interval in milliseconds to check for expired database \
-cache entries (optional, default: \
-${defaultAppConfig.dbConnectionCacheCheckInterval})`,
+      description: `The interval in milliseconds to evict expired database \
+connection cache entries (optional, default: \
+${defaultAppConfig.dbConnectionCacheEvictionInterval})`,
     })
     .option("discord-slow-mode-interval", {
       type: "number",
       description: `The slow mode interval in seconds for Discord user \
-messages (optional, default: ${defaultAppConfig.discordSlowModeInterval})`,
+messages, set to 0 to disable (optional, default:\
+${defaultAppConfig.discordSlowModeInterval})`,
     })
     .wrap(yargs().terminalWidth());
 
@@ -85,27 +98,28 @@ messages (optional, default: ${defaultAppConfig.discordSlowModeInterval})`,
  * Loads configuration from a YAML file specified in parsed command line
  * arguments.
  *
- * @param parsedArgs - The parsed command line arguments containing the config
- * file path
- * @returns A partial configuration object loaded from the YAML file, or an
- * empty object if loading fails
+ * @param configFilePath - Optional path to the YAML configuration file
+ * @returns {Partial<ChatThymeConfig>} A partial configuration object loaded
+ *   from the YAML file, or an empty object if:
+ *   - No file path is provided
+ *   - The file cannot be read
+ *   - The file cannot be parsed as YAML
  *
  * @remarks
- * - If no config file path is provided, returns an empty object
- * - If the file cannot be read or parsed, logs a warning and returns an empty
- *   object
  * - Successfully loading the config file will log an info message
+ * - Failed loading attempts will log a warning message
  */
-const loadFromConfigFile = (parsedArgs: ReturnType<typeof loadFromArgs>) => {
+const loadFromConfigFile = (
+  configFilePath: string | undefined,
+): Partial<ChatThymeConfig> => {
   let configFileConfig: Partial<ChatThymeConfig> = {};
-  const configFilePath = parsedArgs.config as string;
   if (configFilePath) {
     try {
       const rawConfigFile = fs.readFileSync(configFilePath, "utf-8");
-      configFileConfig = yaml.parse(rawConfigFile);
+      configFileConfig = YAML.parse(rawConfigFile);
       console.info(`Loaded configuration from YAML file: ${configFilePath}`);
     } catch (error) {
-      console.warn(`Could not load configuration file from ${configFilePath}.`);
+      console.warn(`Could not load configuration file from ${configFilePath}`);
     }
   }
   return configFileConfig;
@@ -121,17 +135,22 @@ const loadFromConfigFile = (parsedArgs: ReturnType<typeof loadFromArgs>) => {
  * 5. Default values
  *
  * Configuration parameters include:
- * - Discord bot token
- * - Model settings (model name, server URL, system prompt)
- * - Database settings (directory, connection cache size/TTL/check interval)
- * - Discord slow mode interval
+ * - Discord bot token for authentication
+ * - Model settings: name, server URL, API key
+ * - Tool settings: useTools flag, Exa API key
+ * - System prompt for model behavior
+ * - Database settings: directory path, connection cache configuration
+ *   (size, TTL, eviction interval)
+ * - Discord message rate limiting (slow mode interval)
  *
  * @throws {ZodError} If configuration validation fails against the schema
- * @returns {ChatThymeConfig} Validated configuration object matching the configSchema
+ * @returns {ChatThymeConfig} Validated configuration object matching the schema
  */
-export const parseConfig = () => {
+export const parseConfig = (): ChatThymeConfig => {
   const parsedArgs = loadFromArgs();
-  const parsedFromConfig = loadFromConfigFile(parsedArgs);
+  const parsedFromConfig = loadFromConfigFile(
+    parsedArgs.config ? path.resolve(parsedArgs.config) : undefined,
+  );
 
   // Priority:
   // 1. Command line arguments
@@ -152,6 +171,11 @@ export const parseConfig = () => {
         ? process.env.MODEL_SERVER_URL
         : parsedFromConfig.serverUrl),
     apiKey: process.env.API_KEY ?? parsedFromConfig.apiKey,
+    useTools:
+      parsedArgs.useTools ??
+      (process.env.USE_TOOLS !== undefined
+        ? process.env.USE_TOOLS
+        : parsedFromConfig.useTools),
     exaApiKey: process.env.EXA_API_KEY ?? parsedFromConfig.exaApiKey,
     systemPrompt:
       parsedArgs.systemPrompt ??
@@ -166,32 +190,25 @@ export const parseConfig = () => {
     dbConnectionCacheSize:
       parsedArgs.dbConnectionCacheSize ??
       (process.env.DESIRED_MAX_DB_CONNECTION_CACHE_SIZE !== undefined
-        ? Number(process.env.DESIRED_MAX_DB_CONNECTION_CACHE_SIZE)
+        ? process.env.DESIRED_MAX_DB_CONNECTION_CACHE_SIZE
         : parsedFromConfig.dbConnectionCacheSize),
     dbConnectionCacheTtl:
       parsedArgs.dbConnectionCacheTtl ??
       (process.env.DB_CONNECTION_CACHE_TTL_MILLISECONDS !== undefined
-        ? Number(process.env.DB_CONNECTION_CACHE_TTL_MILLISECONDS)
+        ? process.env.DB_CONNECTION_CACHE_TTL_MILLISECONDS
         : parsedFromConfig.dbConnectionCacheTtl),
-    dbConnectionCacheCheckInterval:
-      parsedArgs.dbConnectionCacheCheckInterval ??
-      (process.env.DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS !== undefined
-        ? Number(process.env.DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS)
-        : parsedFromConfig.dbConnectionCacheCheckInterval),
+    dbConnectionCacheEvictionInterval:
+      parsedArgs.dbConnectionCacheEvictionInterval ??
+      (process.env.DB_CONNECTION_CACHE_EVICTION_INTERVAL_MILLISECONDS !==
+      undefined
+        ? process.env.DB_CONNECTION_CACHE_EVICTION_INTERVAL_MILLISECONDS
+        : parsedFromConfig.dbConnectionCacheEvictionInterval),
     discordSlowModeInterval:
       parsedArgs.discordSlowModeInterval ??
       (process.env.DISCORD_SLOW_MODE_SECONDS !== undefined
-        ? Number(process.env.DISCORD_SLOW_MODE_SECONDS)
+        ? process.env.DISCORD_SLOW_MODE_SECONDS
         : parsedFromConfig.discordSlowModeInterval),
   };
-
-  // Validate the raw config object against the Zod schema
-  const validationResult = configSchema.safeParse(rawConfig);
-  if (!validationResult.success) {
-    console.error("Configuration validation failed:");
-    console.error(validationResult.error.issues);
-    throw validationResult.error;
-  }
 
   return configSchema.parse(rawConfig);
 };

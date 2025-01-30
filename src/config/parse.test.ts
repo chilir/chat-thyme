@@ -12,7 +12,6 @@ describe("Configuration Parsing and Loading", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
-    // Reset env vars before each test
     process.env = { ...originalEnv };
   });
 
@@ -24,6 +23,8 @@ describe("Configuration Parsing and Loading", () => {
     expect(config.discordBotToken).toBe("test_token");
     expect(config.model).toBe("test_model");
     expect(config.apiKey).toBe(defaultAppConfig.apiKey);
+    expect(config.useTools).toBe(defaultAppConfig.useTools);
+    expect(config.exaApiKey).toBe(defaultAppConfig.exaApiKey);
     expect(config.serverUrl).toBe(defaultAppConfig.serverUrl);
     expect(config.systemPrompt).toBe(defaultAppConfig.systemPrompt);
     expect(config.dbDir).toBe(defaultAppConfig.dbDir);
@@ -33,8 +34,8 @@ describe("Configuration Parsing and Loading", () => {
     expect(config.dbConnectionCacheTtl).toBe(
       defaultAppConfig.dbConnectionCacheTtl,
     );
-    expect(config.dbConnectionCacheCheckInterval).toBe(
-      defaultAppConfig.dbConnectionCacheCheckInterval,
+    expect(config.dbConnectionCacheEvictionInterval).toBe(
+      defaultAppConfig.dbConnectionCacheEvictionInterval,
     );
     expect(config.discordSlowModeInterval).toBe(
       defaultAppConfig.discordSlowModeInterval,
@@ -47,10 +48,12 @@ describe("Configuration Parsing and Loading", () => {
       MODEL_SERVER_URL: "http://env-server:5000",
       MODEL_SYSTEM_PROMPT: "Environment system prompt",
       API_KEY: "env_api_key",
+      USE_TOOLS: "true",
+      EXA_API_KEY: "env_exa_key",
       DB_DIR: "./env_db",
       DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
       DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
-      DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS: "1200000",
+      DB_CONNECTION_CACHE_EVICTION_INTERVAL_MILLISECONDS: "1200000",
       DISCORD_SLOW_MODE_SECONDS: "20",
     });
 
@@ -60,10 +63,12 @@ describe("Configuration Parsing and Loading", () => {
     expect(config.serverUrl).toBe("http://env-server:5000");
     expect(config.systemPrompt).toBe("Environment system prompt");
     expect(config.apiKey).toBe("env_api_key");
+    expect(config.useTools).toBe(true);
+    expect(config.exaApiKey).toBe("env_exa_key");
     expect(config.dbDir).toBe("./env_db");
     expect(config.dbConnectionCacheSize).toBe(200);
     expect(config.dbConnectionCacheTtl).toBe(7200000);
-    expect(config.dbConnectionCacheCheckInterval).toBe(1200000);
+    expect(config.dbConnectionCacheEvictionInterval).toBe(1200000);
     expect(config.discordSlowModeInterval).toBe(20);
   });
 
@@ -77,13 +82,14 @@ describe("Configuration Parsing and Loading", () => {
       "http://cli-server:6000",
       "--system-prompt",
       "CLI system prompt",
+      "--use-tools",
       "--db-dir",
       "./cli_db",
       "--db-connection-cache-size",
       "300",
       "--db-connection-cache-ttl",
       "10800000",
-      "--db-connection-cache-check-interval",
+      "--db-connection-cache-eviction-interval",
       "1800000",
       "--discord-slow-mode-interval",
       "30",
@@ -93,10 +99,12 @@ describe("Configuration Parsing and Loading", () => {
       CHAT_THYME_MODEL: "env_model",
       MODEL_SERVER_URL: "http://env-server:5000",
       MODEL_SYSTEM_PROMPT: "Environment system prompt",
+      USE_TOOLS: 0,
+      EXA_API_KEY: "env_exa_key",
       DB_DIR: "./env_db",
       DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
       DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
-      DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS: "1200000",
+      DB_CONNECTION_CACHE_EVICTION_INTERVAL_MILLISECONDS: "1200000",
       DISCORD_SLOW_MODE_SECONDS: "20",
     });
 
@@ -105,10 +113,12 @@ describe("Configuration Parsing and Loading", () => {
     expect(config.model).toBe("cli_model");
     expect(config.serverUrl).toBe("http://cli-server:6000");
     expect(config.systemPrompt).toBe("CLI system prompt");
+    expect(config.useTools).toBe(true); // CLI arg overrides env
+    expect(config.exaApiKey).toBe("env_exa_key");
     expect(config.dbDir).toBe("./cli_db");
     expect(config.dbConnectionCacheSize).toBe(300);
     expect(config.dbConnectionCacheTtl).toBe(10800000);
-    expect(config.dbConnectionCacheCheckInterval).toBe(1800000);
+    expect(config.dbConnectionCacheEvictionInterval).toBe(1800000);
     expect(config.discordSlowModeInterval).toBe(30);
 
     process.argv = originalArgv;
@@ -121,6 +131,8 @@ describe("Configuration Parsing and Loading", () => {
 model: yaml_model
 serverUrl: http://yaml-server:7000
 systemPrompt: YAML system prompt
+useTools: true
+exaApiKey: yaml_exa_key
 dbDir: ./yaml_db
 dbConnectionCacheSize: 400
 dbConnectionCacheTtl: 14400000
@@ -144,11 +156,13 @@ discordSlowModeInterval: 40
       CHAT_THYME_MODEL: "env_model",
       MODEL_SERVER_URL: "http://env-server:5000",
       MODEL_SYSTEM_PROMPT: "Environment system prompt",
+      USE_TOOLS: 0,
+      EXA_API_KEY: "env_exa_key",
       API_KEY: "env_api_key",
       DB_DIR: "./env_db",
       DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
       DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
-      DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS: "1200000",
+      DB_CONNECTION_CACHE_EVICTION_INTERVAL_MILLISECONDS: "1200000",
       DISCORD_SLOW_MODE_SECONDS: "20",
     });
 
@@ -156,11 +170,13 @@ discordSlowModeInterval: 40
     expect(config.model).toBe("cli_model");
     expect(config.serverUrl).toBe("http://cli-server:6000");
     expect(config.systemPrompt).toBe("Environment system prompt");
+    expect(config.useTools).toBe(false); // Env overrides YAML
+    expect(config.exaApiKey).toBe("env_exa_key"); // Env overrides YAML
     expect(config.apiKey).toBe("env_api_key");
     expect(config.dbDir).toBe("./env_db");
     expect(config.dbConnectionCacheSize).toBe(200);
     expect(config.dbConnectionCacheTtl).toBe(7200000);
-    expect(config.dbConnectionCacheCheckInterval).toBe(1200000);
+    expect(config.dbConnectionCacheEvictionInterval).toBe(1200000);
     expect(config.discordSlowModeInterval).toBe(20);
     expect(config.discordBotToken).toBe("test_token");
 
@@ -176,6 +192,8 @@ discordSlowModeInterval: 40
 model: yaml_model_value
 serverUrl: http://yaml-server-value:7000
 systemPrompt: YAML system prompt value
+useTools: true
+exaApiKey: yaml_exa_key
 dbDir: ./yaml_db_value
 dbConnectionCacheSize: 400
 dbConnectionCacheTtl: 14400000
@@ -198,11 +216,13 @@ discordSlowModeInterval: 40
       CHAT_THYME_MODEL: "env_model_value",
       MODEL_SERVER_URL: "http://env-server-value:5000",
       MODEL_SYSTEM_PROMPT: "Environment system prompt value",
+      USE_TOOLS: 0,
+      EXA_API_KEY: "env_exa_key_value",
       API_KEY: "env_api_key_value",
       DB_DIR: "./env_db_value",
       DESIRED_MAX_DB_CONNECTION_CACHE_SIZE: "200",
       DB_CONNECTION_CACHE_TTL_MILLISECONDS: "7200000",
-      DB_CONNECTION_CACHE_CHECK_INTERVAL_MILLISECONDS: "1200000",
+      DB_CONNECTION_CACHE_EVICTION_INTERVAL_MILLISECONDS: "1200000",
       DISCORD_SLOW_MODE_SECONDS: "20",
       DISCORD_BOT_TOKEN: "stubbed_token",
     });
@@ -212,15 +232,17 @@ discordSlowModeInterval: 40
     expect(config.model).toBe("cli_model_value");
     expect(config.serverUrl).toBe("http://cli-server:6000");
     expect(config.systemPrompt).toBe("Environment system prompt value");
+    expect(config.useTools).toBe(false);
+    expect(config.exaApiKey).toBe("env_exa_key_value");
     expect(config.apiKey).toBe("env_api_key_value");
     expect(config.dbDir).toBe("./env_db_value");
     expect(config.dbConnectionCacheSize).toBe(200);
     expect(config.dbConnectionCacheTtl).toBe(7200000);
-    expect(config.dbConnectionCacheCheckInterval).toBe(1200000);
+    expect(config.dbConnectionCacheEvictionInterval).toBe(1200000);
     expect(config.discordSlowModeInterval).toBe(20);
     expect(config.dbDir).not.toBe(defaultAppConfig.dbDir);
-    expect(config.dbConnectionCacheCheckInterval).not.toBe(
-      defaultAppConfig.dbConnectionCacheCheckInterval,
+    expect(config.dbConnectionCacheEvictionInterval).not.toBe(
+      defaultAppConfig.dbConnectionCacheEvictionInterval,
     );
 
     process.argv = originalArgv;
