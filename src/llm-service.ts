@@ -2,22 +2,11 @@
 
 import type { OpenAI } from "openai";
 import type { ChatParameters, ChatPrompt, ChatResponse } from "./interfaces";
-import { TOOLS } from "./tools";
-
-const validateResponse = (response: ChatResponse): void => {
-  if (response.error) {
-    console.error(response.error);
-    console.error(`Error metadata: ${response.error.metadata}`);
-    throw new Error(
-      `Error during model interaction: ${response.error.code} - ${response.error.message}`,
-    );
-  }
-};
-
+import { CHAT_THYME_TOOLS } from "./tools";
 /**
  * Sends a chat request to the model and returns the response.
  * This function handles the direct interaction with the model server via
- * the OpenAI library.
+ * the OpenAI client.
  *
  * @param {OpenAI} modelClient - LLM service client
  * @param {ChatPrompt} prompt - The chat prompt containing model name and
@@ -30,17 +19,22 @@ export const chatWithModel = async (
   prompt: ChatPrompt,
   options: Partial<ChatParameters>,
 ): Promise<OpenAI.Chat.ChatCompletion> => {
-  try {
-    const response = await modelClient.chat.completions.create({
-      model: prompt.modelName,
-      messages: prompt.messages,
-      tools: TOOLS,
-      ...options,
-    });
-    validateResponse(response);
-    return response;
-  } catch (error) {
-    console.error("Error during model interaction:", error);
-    throw error;
+  const response = (await modelClient.chat.completions.create({
+    model: prompt.modelName,
+    messages: prompt.messages,
+    tools: prompt.useTools ? CHAT_THYME_TOOLS : undefined,
+    ...options,
+  })) as ChatResponse;
+
+  if (response.error) {
+    console.debug(response.error);
+    console.debug(`Model response error code: ${response.error.code}`);
+    console.debug(`Model response error message: ${response.error.message}`);
+    console.debug(`Model response error metadata: ${response.error.metadata}`);
+    throw new Error(
+      `Error during model interaction: ${response.error.message}`,
+    );
   }
+
+  return response;
 };
