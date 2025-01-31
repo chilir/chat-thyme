@@ -9,6 +9,50 @@ import type {
 } from "../interfaces";
 
 /**
+ * Retrieves chat history for a specific user and chat from the database and
+ * prepends the system prompt.
+ *
+ * @param userDb - SQLite database instance for the user
+ * @param userId - Unique identifier for the user
+ * @param chatId - Unique identifier for the chat session
+ * @param systemPrompt - System prompt to prepend to the chat history
+ * @returns {Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]>}
+ * Array of messages in OpenAI chat format
+ * @throws {Error} If database query fails
+ */
+export const getChatHistoryFromDb = async (
+  userDb: Database,
+  userId: string,
+  chatId: string,
+  systemPrompt: string,
+): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> => {
+  let chatHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  try {
+    chatHistory = userDb
+      .query(`
+      SELECT role, content
+      FROM chat_messages
+      WHERE chat_id = ?
+      ORDER BY id ASC
+    `)
+      .all(chatId) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  } catch (error) {
+    console.error(
+      `Error getting chat history from database for ${userId} in chat ${chatId}:`,
+      error,
+    );
+    throw error;
+  }
+
+  chatHistory.unshift({
+    role: "system",
+    content: systemPrompt,
+  });
+
+  return chatHistory;
+};
+
+/**
  * Extracts main content and optional reasoning from an LLMChatMessage.
  * Handles refusal scenarios if present.
  *

@@ -7,6 +7,7 @@ import type { DbChatMessage, LLMChatMessage } from "../interfaces";
 import {
   extractMessageContent,
   formatResponse,
+  getChatHistoryFromDb,
   processOpenRouterContent,
   saveChatMessageToDb,
   saveChatMessagesToDb,
@@ -69,63 +70,63 @@ describe("processOpenRouterContent", () => {
     const result = processOpenRouterContent(
       "Hello world",
       "Thinking about greeting",
-      [{
-        message: {
-          content: "Hello world", role: "assistant",
-          refusal: null
+      [
+        {
+          message: {
+            content: "Hello world",
+            role: "assistant",
+            refusal: null,
+          },
+          index: 0,
+          finish_reason: "stop",
+          logprobs: null,
         },
-        index: 0,
-        finish_reason: "stop",
-        logprobs: null
-      }],
+      ],
     );
     expect(result.msgContent).toBe("Hello world");
     expect(result.reasoningContent).toBe("Thinking about greeting");
   });
 
   it("should handle OpenRouter style split content and reasoning", () => {
-    const result = processOpenRouterContent(
-      null,
-      "Thinking process",
-      [
-        {
-          message: {
-            content: null, role: "assistant",
-            refusal: null
-          },
-          index: 0,
-          finish_reason: "stop",
-          logprobs: null
+    const result = processOpenRouterContent(null, "Thinking process", [
+      {
+        message: {
+          content: null,
+          role: "assistant",
+          refusal: null,
         },
-        {
-          message: {
-            content: "Final answer", role: "assistant",
-            refusal: null
-          },
-          index: 1,
-          finish_reason: "stop",
-          logprobs: null
+        index: 0,
+        finish_reason: "stop",
+        logprobs: null,
+      },
+      {
+        message: {
+          content: "Final answer",
+          role: "assistant",
+          refusal: null,
         },
-      ],
-    );
+        index: 1,
+        finish_reason: "stop",
+        logprobs: null,
+      },
+    ]);
     expect(result.msgContent).toBe("Final answer");
     expect(result.reasoningContent).toBe("Thinking process");
   });
 
   it("should handle missing content with fallback", () => {
-    const result = processOpenRouterContent(
-      null,
-      "Some reasoning",
-      [{
+    const result = processOpenRouterContent(null, "Some reasoning", [
+      {
         message: {
-          content: null, role: "assistant",
-          refusal: null
+          content: null,
+          role: "assistant",
+          refusal: null,
         },
         index: 0,
         finish_reason: "stop",
-        logprobs: null
-      }],
-    );
+        logprobs: null,
+      },
+    ]);
     expect(result.msgContent).toBe("No valid response was generated");
     expect(result.reasoningContent).toBe("Some reasoning");
   });
@@ -235,5 +236,97 @@ describe("database operations", () => {
       .query("SELECT * FROM chat_messages WHERE chat_id = ?")
       .get("chat456") as { content: string };
     expect(result.content.length).toBe(longContent.length);
+  });
+});
+
+describe("getChatHistoryFromDb", () => {
+  let db: Database;
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = tmp.dirSync({
+      prefix: "chat-thyme-test-",
+      unsafeCleanup: true,
+    }).name;
+    db = new Database(`${tmpDir}/test.db`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chat_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      timestamp TEXT NOT NULL
+    )`);
+  });
+
+  afterEach(() => {
+    db.close();
+    Bun.write(tmpDir, ""); // Clear tmp directory
+  });
+
+  it("should retrieve chat history and prepend system prompt", async () => {
+    // Insert test messages
+    const messages = [
+      {
+        chat_id: "test-chat",
+        role: "user",
+        content: "Hello",
+        timestamp: new Date().toISOString(),
+      },
+      {
+        chat_id: "test-chat",
+        role: "assistant",
+        content: "Hi there",
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    for (const msg of messages) {
+      db.run(
+        "INSERT INTO chat_messages (chat_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
+        [msg.chat_id, msg.role, msg.content, msg.timestamp],
+      );
+    }
+
+    const systemPrompt = "You are a helpful assistant.";
+    const history = await getChatHistoryFromDb(
+      db,
+      "user123",
+      "test-chat",
+      systemPrompt,
+    );
+
+    expect(history.length).toBe(3); // 2 messages + system prompt
+    expect(history[0]).toEqual({
+      role: "system",
+      content: systemPrompt,
+    });
+    expect(history[1]?.content).toBe("Hello");
+    expect(history[2]?.content).toBe("Hi there");
+  });
+
+  it("should handle empty chat history", async () => {
+    const systemPrompt = "You are a helpful assistant.";
+    const history = await getChatHistoryFromDb(
+      db,
+      "user123",
+      "nonexistent-chat",
+      systemPrompt,
+    );
+
+    expect(history.length).toBe(1);
+    expect(history[0]).toEqual({
+      role: "system",
+      content: systemPrompt,
+    });
+  });
+
+  it("should handle database errors", async () => {
+    // Drop the table to simulate a database error
+    db.run("DROP TABLE chat_messages");
+
+    await expect(
+      getChatHistoryFromDb(db, "user123", "test-chat", "system prompt"),
+    ).rejects.toThrow();
   });
 });
