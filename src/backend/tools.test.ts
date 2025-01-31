@@ -1,10 +1,18 @@
 // src/backend/tools.test.ts
 
 import type { Database } from "bun:sqlite";
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+  spyOn,
+} from "bun:test";
 import type Exa from "exa-js";
 import type { OpenAI } from "openai";
-import { chatWithModel } from "./llm-service";
+import * as LlmService from "./llm-service";
 import { CHAT_THYME_TOOLS, processToolCalls } from "./tools";
 
 describe("CHAT_THYME_TOOLS", () => {
@@ -26,11 +34,11 @@ describe("processToolCalls", () => {
   let mockModelClient: OpenAI;
 
   beforeEach(() => {
-    // Create fresh mocks for each test
     mockDb = {
       run: mock(() => {}),
     } as unknown as Database;
 
+    mockModelClient = {} as OpenAI;
     mockExaClient = {
       searchAndContents: mock(() =>
         Promise.resolve({
@@ -39,27 +47,33 @@ describe("processToolCalls", () => {
       ),
     } as unknown as Exa;
 
-    mockModelClient = {} as OpenAI;
-
-    mock.module("./llm-service", () => ({
-      chatWithModel: mock(() =>
-        Promise.resolve({
-          choices: [
-            {
-              message: {
-                role: "assistant",
-                content: JSON.stringify({
-                  summary: "Processed search results",
-                }),
-                reasoning_content: "Analyzed the search data",
-              },
-              finish_reason: "stop",
+    spyOn(LlmService, "chatWithModel").mockImplementation(() =>
+      Promise.resolve({
+        choices: [
+          {
+            message: {
+              role: "assistant",
+              content: JSON.stringify({
+                summary: "Processed search results",
+              }),
+              reasoning_content: "Analyzed the search data",
+              refusal: null,
             },
-          ],
-          created: Date.now() / 1000,
-        }),
-      ),
-    }));
+            finish_reason: "stop",
+            index: 0,
+            logprobs: null,
+          },
+        ],
+        created: Date.now() / 1000,
+        id: "mock-id",
+        model: "gpt-4",
+        object: "chat.completion",
+      }),
+    );
+  });
+
+  afterEach(() => {
+    mock.restore();
   });
 
   it("should process exa_search tool calls successfully", async () => {
@@ -128,10 +142,14 @@ describe("processToolCalls", () => {
   });
 
   it("should handle empty model response choices", async () => {
-    (
-      chatWithModel as unknown as ReturnType<typeof mock>
-    ).mockImplementationOnce(() =>
-      Promise.resolve({ choices: [], created: Date.now() / 1000 }),
+    spyOn(LlmService, "chatWithModel").mockImplementation(() =>
+      Promise.resolve({
+        choices: [],
+        created: Date.now() / 1000,
+        id: "mock-id",
+        model: "gpt-4",
+        object: "chat.completion",
+      }),
     );
 
     const toolCalls = [
