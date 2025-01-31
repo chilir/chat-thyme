@@ -2,9 +2,9 @@
 
 import { describe, expect, it, mock } from "bun:test";
 import type OpenAI from "openai";
-import type { ChatPrompt } from "./interfaces";
-import { chatWithModel } from "./llm-service";
 import { CHAT_THYME_TOOLS } from "./tools";
+import type { ChatPrompt } from "../interfaces";
+import { chatWithModel } from "./llm-service";
 
 describe("LLM Service", () => {
   const mockResponse: OpenAI.Chat.ChatCompletion = {

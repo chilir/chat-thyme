@@ -1,8 +1,8 @@
 // src/llm-service.ts
 
 import type { OpenAI } from "openai";
-import type { ChatParameters, ChatPrompt, ChatResponse } from "./interfaces";
 import { CHAT_THYME_TOOLS } from "./tools";
+import type { ChatParameters, ChatPrompt, ChatResponse } from "../interfaces";
 /**
  * Sends a chat request to the model and returns the response.
  * This function handles the direct interaction with the model server via
