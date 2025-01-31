@@ -101,7 +101,7 @@ const processExaSearchCall = async (
  * @param {OpenAI.Chat.Completions.ChatCompletionMessageParam[]} currentChatMessages - The current conversation history
  * @param {OpenAI} modelClient - The OpenAI client for model interactions
  * @param {string} model - Name of the model to use
- * @param {Partial<ChatParameters>} options - Model parameters
+ * @param {Partial<ChatParameters>} modelOptions - Model parameters
  * @param {Database} userDb - User's database instance
  * @param {string} userId - Unique identifier for the user
  * @param {string} chatId - Unique identifier for the chat session
@@ -113,7 +113,7 @@ export const processToolCalls = async (
   currentChatMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
   modelClient: OpenAI,
   model: string,
-  options: Partial<ChatParameters>,
+  modelOptions: Partial<ChatParameters>,
   userDb: Database,
   userId: string,
   chatId: string,
@@ -158,7 +158,7 @@ export const processToolCalls = async (
       messages: currentChatMessages,
       useTools: false, // Prevent infinite tool call loops
     },
-    options,
+    modelOptions,
   );
 
   if (!response.choices.length) {
@@ -178,16 +178,16 @@ export const processToolCalls = async (
   );
   const { msgContent: finalContent, reasoningContent: finalReasoning } =
     processOpenRouterContent(msgContent, reasoningContent, response.choices);
-  const formattedContent = formatResponse(
-    finalContent as string,
-    finalReasoning,
-  );
+  // const formattedContent = formatResponse(
+  //   finalContent as string,
+  //   finalReasoning,
+  // );
 
-  messagesToSave.push({
-    role: "assistant",
-    content: formattedContent,
-    timestamp: new Date(response.created * 1000),
-  });
+  // messagesToSave.push({
+  //   role: "assistant",
+  //   content: formattedContent,
+  //   timestamp: new Date(response.created * 1000),
+  // });
 
   await saveChatMessagesToDb(userDb, userId, chatId, messagesToSave);
 
