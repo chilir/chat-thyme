@@ -7,6 +7,7 @@ import type { DbChatMessage, LLMChatMessage } from "../interfaces";
 import {
   extractMessageContent,
   formatResponse,
+  processOpenRouterContent,
   saveChatMessageToDb,
   saveChatMessagesToDb,
 } from "./utils";
@@ -60,6 +61,73 @@ describe("formatResponse", () => {
   it("should return only message when no reasoning provided", () => {
     const result = formatResponse("Hello");
     expect(result).toBe("Hello");
+  });
+});
+
+describe("processOpenRouterContent", () => {
+  it("should handle standard content with reasoning", () => {
+    const result = processOpenRouterContent(
+      "Hello world",
+      "Thinking about greeting",
+      [{
+        message: {
+          content: "Hello world", role: "assistant",
+          refusal: null
+        },
+        index: 0,
+        finish_reason: "stop",
+        logprobs: null
+      }],
+    );
+    expect(result.msgContent).toBe("Hello world");
+    expect(result.reasoningContent).toBe("Thinking about greeting");
+  });
+
+  it("should handle OpenRouter style split content and reasoning", () => {
+    const result = processOpenRouterContent(
+      null,
+      "Thinking process",
+      [
+        {
+          message: {
+            content: null, role: "assistant",
+            refusal: null
+          },
+          index: 0,
+          finish_reason: "stop",
+          logprobs: null
+        },
+        {
+          message: {
+            content: "Final answer", role: "assistant",
+            refusal: null
+          },
+          index: 1,
+          finish_reason: "stop",
+          logprobs: null
+        },
+      ],
+    );
+    expect(result.msgContent).toBe("Final answer");
+    expect(result.reasoningContent).toBe("Thinking process");
+  });
+
+  it("should handle missing content with fallback", () => {
+    const result = processOpenRouterContent(
+      null,
+      "Some reasoning",
+      [{
+        message: {
+          content: null, role: "assistant",
+          refusal: null
+        },
+        index: 0,
+        finish_reason: "stop",
+        logprobs: null
+      }],
+    );
+    expect(result.msgContent).toBe("No valid response was generated");
+    expect(result.reasoningContent).toBe("Some reasoning");
   });
 });
 

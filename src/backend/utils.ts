@@ -1,7 +1,12 @@
 // src/backend/utils.ts
 
 import type { Database } from "bun:sqlite";
-import type { DbChatMessage, LLMChatMessage } from "../interfaces";
+import type OpenAI from "openai";
+import type {
+  DbChatMessage,
+  LLMChatMessage,
+  ProcessedMessageContent,
+} from "../interfaces";
 
 /**
  * Extracts main content and optional reasoning from an LLMChatMessage.
@@ -9,15 +14,12 @@ import type { DbChatMessage, LLMChatMessage } from "../interfaces";
  *
  * @param {LLMChatMessage} message - The message containing content and
  *   optional reasoning
- * @returns {{ msgContent: string | null; reasoningContent?: string }} An object
- *   with the extracted message and reasoning
+ * @returns {ProcessedMessageContent} An object with the extracted message and
+ *   reasoning
  */
 export const extractMessageContent = (
   message: LLMChatMessage,
-): {
-  msgContent: string | null;
-  reasoningContent?: string;
-} => {
+): ProcessedMessageContent => {
   const reasoningContent = message.reasoning_content || message.reasoning || "";
 
   if (message.refusal) {
@@ -34,6 +36,36 @@ export const extractMessageContent = (
 };
 
 /**
+ * Processes model response content in OpenRouter format.
+ * Handles cases where reasoning and content are split across multiple choices.
+ *
+ * @param {string | null} firstChoiceContent - The content from the first choice's message
+ * @param {string | undefined} firstChoiceReasoning - The reasoning from the first choice's message
+ * @param {OpenAI.Chat.Completions.ChatCompletion.Choice[]} choices - All choices from the response
+ * @returns {ProcessedMessageContent} Processed content
+ */
+export const processOpenRouterContent = (
+  firstChoiceContent: string | null,
+  firstChoiceReasoning: string | undefined,
+  choices: OpenAI.Chat.Completions.ChatCompletion.Choice[],
+): ProcessedMessageContent => {
+  if (firstChoiceReasoning && !firstChoiceContent && choices.length > 1) {
+    const contentChoice = choices.find((choice) => choice.message.content);
+    return {
+      msgContent:
+        contentChoice?.message.content ||
+        "No valid response content was generated",
+      reasoningContent: firstChoiceReasoning,
+    };
+  }
+
+  return {
+    msgContent: firstChoiceContent || "No valid response was generated",
+    reasoningContent: firstChoiceReasoning,
+  };
+};
+
+/**
  * Formats the final response with reasoning if present.
  *
  * @param {string} msgContent - The main message text
@@ -42,7 +74,7 @@ export const extractMessageContent = (
  */
 export const formatResponse = (
   msgContent: string,
-  reasoningContent?: string,
+  reasoningContent?: string | undefined,
 ): string => {
   return reasoningContent
     ? `<thinking>\n${reasoningContent}</thinking>\n${msgContent}`

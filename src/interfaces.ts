@@ -23,6 +23,12 @@ export interface DbCacheEntry {
   refCount: number;
 }
 
+export interface DbChatMessage {
+  role: "user" | "assistant" | "tool";
+  content: string;
+  timestamp: Date;
+}
+
 // Client interfaces
 export interface ChatThymeClients {
   modelClient: OpenAI;
@@ -45,10 +51,11 @@ export interface ChatMessageQueue {
   stopSignal: boolean;
 }
 
-// Core chat interfaces
+// LLM interfaces
 export interface ChatPrompt {
   modelName: string;
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  useTools: boolean;
 }
 
 export interface ChatParameters
@@ -68,4 +75,15 @@ interface ErrorResponse {
 
 export interface ChatResponse extends OpenAI.Chat.ChatCompletion {
   error?: ErrorResponse;
+}
+
+export interface LLMChatMessage
+  extends OpenAI.Chat.Completions.ChatCompletionMessage {
+  reasoning_content?: string;
+  reasoning?: string;
+}
+
+export interface ProcessedMessageContent {
+  msgContent: string | null;
+  reasoningContent?: string;
 }
