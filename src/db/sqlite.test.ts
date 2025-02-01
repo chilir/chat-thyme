@@ -10,15 +10,15 @@ import { getOrInitUserDb, releaseUserDb } from "./sqlite";
 // Ensure tmp cleanup
 tmp.setGracefulCleanup();
 
-let asdfuserDbCache: DbCache;
-let asdftmpDir: tmp.DirResult;
+let userDbCache: DbCache;
+let tmpDir: tmp.DirResult;
 const userId = "test-user";
 const testDbConnectionCacheSize = 2;
 
 describe("SQLite Database Operations", () => {
   beforeEach(() => {
-    asdfuserDbCache = initUserDbCache();
-    asdftmpDir = tmp.dirSync({
+    userDbCache = initUserDbCache();
+    tmpDir = tmp.dirSync({
       prefix: "chat-thyme-sqlite-test-",
       unsafeCleanup: true,
       keep: false,
@@ -26,24 +26,23 @@ describe("SQLite Database Operations", () => {
   });
 
   afterEach(async () => {
-    await clearUserDbCache(asdfuserDbCache);
-    asdftmpDir.removeCallback(); // Explicitly remove temp directory
+    await clearUserDbCache(userDbCache);
+    tmpDir.removeCallback(); // Explicitly remove temp directory
   });
 
   describe("Basic Database Operations", () => {
     it("should initialize new database for user", async () => {
-      console.log(asdfuserDbCache.cache);
       const db = await getOrInitUserDb(
         userId,
-        asdfuserDbCache,
-        asdftmpDir.name,
+        userDbCache,
+        tmpDir.name,
         testDbConnectionCacheSize,
       );
       expect(db).toBeInstanceOf(Database);
-      console.log(asdfuserDbCache.cache);
-      expect(asdfuserDbCache.cache.has(userId)).toBe(true);
+      console.log(userDbCache.cache);
+      expect(userDbCache.cache.has(userId)).toBe(true);
 
-      const cacheEntry = asdfuserDbCache.cache.get(userId) as DbCacheEntry;
+      const cacheEntry = userDbCache.cache.get(userId) as DbCacheEntry;
       expect(cacheEntry.refCount).toBe(1);
 
       // Verify schema creation
@@ -65,21 +64,21 @@ describe("SQLite Database Operations", () => {
     it("should reuse cached database connection", async () => {
       const db1 = await getOrInitUserDb(
         userId,
-        asdfuserDbCache,
-        asdftmpDir.name,
+        userDbCache,
+        tmpDir.name,
         testDbConnectionCacheSize,
       );
 
       // Second request for same user
       const db2 = await getOrInitUserDb(
         userId,
-        asdfuserDbCache,
-        asdftmpDir.name,
+        userDbCache,
+        tmpDir.name,
         testDbConnectionCacheSize,
       );
 
       expect(db1).toBe(db2);
-      const cacheEntry = asdfuserDbCache.cache.get(userId) as DbCacheEntry;
+      const cacheEntry = userDbCache.cache.get(userId) as DbCacheEntry;
       expect(cacheEntry.refCount).toBe(2);
     });
 
@@ -90,39 +89,39 @@ describe("SQLite Database Operations", () => {
       // Fill cache to limit
       await getOrInitUserDb(
         userId,
-        asdfuserDbCache,
-        asdftmpDir.name,
+        userDbCache,
+        tmpDir.name,
         testDbConnectionCacheSize,
       );
       await getOrInitUserDb(
         userId2,
-        asdfuserDbCache,
-        asdftmpDir.name,
+        userDbCache,
+        tmpDir.name,
         testDbConnectionCacheSize,
       );
 
-      await releaseUserDb(userId, asdfuserDbCache);
+      await releaseUserDb(userId, userDbCache);
 
       // Add another connection that should evict user 1
       await getOrInitUserDb(
         userId3,
-        asdfuserDbCache,
-        asdftmpDir.name,
+        userDbCache,
+        tmpDir.name,
         testDbConnectionCacheSize,
       );
 
-      expect(asdfuserDbCache.cache.has(userId)).toBe(false);
-      expect(asdfuserDbCache.cache.has(userId2)).toBe(true);
-      expect(asdfuserDbCache.cache.has(userId3)).toBe(true);
-      expect(asdfuserDbCache.cache.size).toBe(2);
+      expect(userDbCache.cache.has(userId)).toBe(false);
+      expect(userDbCache.cache.has(userId2)).toBe(true);
+      expect(userDbCache.cache.has(userId3)).toBe(true);
+      expect(userDbCache.cache.size).toBe(2);
     });
   });
 
   it("should handle database corruption", async () => {
     const db = await getOrInitUserDb(
       userId,
-      asdfuserDbCache,
-      asdftmpDir.name,
+      userDbCache,
+      tmpDir.name,
       testDbConnectionCacheSize,
     );
 
@@ -137,8 +136,8 @@ describe("SQLite Database Operations", () => {
     it("should handle concurrent database access", async () => {
       const firstDb = await getOrInitUserDb(
         userId,
-        asdfuserDbCache,
-        asdftmpDir.name,
+        userDbCache,
+        tmpDir.name,
         testDbConnectionCacheSize,
       );
       if (!firstDb) throw new Error("First database connection is undefined");
@@ -151,8 +150,8 @@ describe("SQLite Database Operations", () => {
         .map(() =>
           getOrInitUserDb(
             userId,
-            asdfuserDbCache,
-            asdftmpDir.name,
+            userDbCache,
+            tmpDir.name,
             testDbConnectionCacheSize,
           ),
         );
@@ -166,7 +165,7 @@ describe("SQLite Database Operations", () => {
       }
 
       // Reference count should match concurrent access count
-      expect(asdfuserDbCache.cache.get(userId)?.refCount).toBe(
+      expect(userDbCache.cache.get(userId)?.refCount).toBe(
         concurrentAccesses + 1,
       );
     });
@@ -179,16 +178,16 @@ describe("SQLite Database Operations", () => {
         promises.push(async () => {
           await getOrInitUserDb(
             `${userId}-${i}`,
-            asdfuserDbCache,
-            asdftmpDir.name,
+            userDbCache,
+            tmpDir.name,
             testDbConnectionCacheSize,
           );
-          await releaseUserDb(`${userId}-${i}`, asdfuserDbCache);
+          await releaseUserDb(`${userId}-${i}`, userDbCache);
         });
       }
 
       await Promise.all(promises);
-      expect(asdfuserDbCache.cache.size).toBeLessThanOrEqual(
+      expect(userDbCache.cache.size).toBeLessThanOrEqual(
         testDbConnectionCacheSize,
       );
     });
@@ -198,8 +197,8 @@ describe("SQLite Database Operations", () => {
     it("should create all required indexes", async () => {
       const db = await getOrInitUserDb(
         userId,
-        asdfuserDbCache,
-        asdftmpDir.name,
+        userDbCache,
+        tmpDir.name,
         testDbConnectionCacheSize,
       );
 
@@ -220,8 +219,8 @@ describe("SQLite Database Operations", () => {
     it("should enforce schema constraints", async () => {
       const db = await getOrInitUserDb(
         userId,
-        asdfuserDbCache,
-        asdftmpDir.name,
+        userDbCache,
+        tmpDir.name,
         testDbConnectionCacheSize,
       );
 

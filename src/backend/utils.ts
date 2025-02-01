@@ -8,6 +8,28 @@ import type {
   ProcessedMessageContent,
 } from "../interfaces";
 
+function parseDbMessage(row: DbChatMessage): OpenAI.ChatCompletionMessageParam {
+  if (row.role === "tool" && row.tool_call_id) {
+    // Parse the outer array structure but keep text field as string
+    const content = JSON.parse(
+      row.content as string,
+    ) as OpenAI.ChatCompletionContentPart[];
+
+    return {
+      role: "tool",
+      content: content,
+      tool_call_id: row.tool_call_id,
+      timestamp: row.timestamp,
+    } as OpenAI.ChatCompletionToolMessageParam;
+  }
+
+  return {
+    role: row.role,
+    content: row.content,
+    timestamp: row.timestamp,
+  } as OpenAI.ChatCompletionMessageParam;
+}
+
 /**
  * Retrieves chat history for a specific user and chat from the database and
  * prepends the system prompt.
@@ -16,7 +38,7 @@ import type {
  * @param userId - Unique identifier for the user
  * @param chatId - Unique identifier for the chat session
  * @param systemPrompt - System prompt to prepend to the chat history
- * @returns {Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]>}
+ * @returns {Promise<OpenAI.ChatCompletionMessageParam[]>}
  * Array of messages in OpenAI chat format
  * @throws {Error} If database query fails
  */
@@ -25,17 +47,19 @@ export const getChatHistoryFromDb = async (
   userId: string,
   chatId: string,
   systemPrompt: string,
-): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> => {
-  let chatHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+): Promise<OpenAI.ChatCompletionMessageParam[]> => {
+  let chatHistory: OpenAI.ChatCompletionMessageParam[];
   try {
-    chatHistory = userDb
-      .query(`
-      SELECT role, content
+    chatHistory = (
+      userDb
+        .query(`
+      SELECT role, content, tool_call_id
       FROM chat_messages
       WHERE chat_id = ?
       ORDER BY id ASC
     `)
-      .all(chatId) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+        .all(chatId) as DbChatMessage[]
+    ).map(parseDbMessage) as OpenAI.ChatCompletionMessageParam[];
   } catch (error) {
     console.error(
       `Error getting chat history from database for ${userId} in chat ${chatId}:`,
@@ -85,13 +109,13 @@ export const extractMessageContent = (
  *
  * @param {string | null} firstChoiceContent - The content from the first choice's message
  * @param {string | undefined} firstChoiceReasoning - The reasoning from the first choice's message
- * @param {OpenAI.Chat.Completions.ChatCompletion.Choice[]} choices - All choices from the response
+ * @param {OpenAI.ChatCompletion.Choice[]} choices - All choices from the response
  * @returns {ProcessedMessageContent} Processed content
  */
 export const processOpenRouterContent = (
   firstChoiceContent: string | null,
   firstChoiceReasoning: string | undefined,
-  choices: OpenAI.Chat.Completions.ChatCompletion.Choice[],
+  choices: OpenAI.ChatCompletion.Choice[],
 ): ProcessedMessageContent => {
   if (firstChoiceReasoning && !firstChoiceContent && choices.length > 1) {
     const contentChoice = choices.find((choice) => choice.message.content);
@@ -141,13 +165,17 @@ export const saveChatMessageToDb = async (
   userId: string,
   chatId: string,
   role: "user" | "assistant" | "tool",
-  content: string,
+  content: string | OpenAI.ChatCompletionContentPart[],
   timestamp: Date,
+  toolCallId: string | null,
 ): Promise<void> => {
+  const chatContent = Array.isArray(content)
+    ? JSON.stringify(content)
+    : content;
   try {
     userDb.run(
-      "INSERT INTO chat_messages (chat_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
-      [chatId, role, content, timestamp.toISOString()],
+      "INSERT INTO chat_messages (chat_id, role, content, tool_call_id, timestamp) VALUES (?, ?, ?, ?, ?)",
+      [chatId, role, chatContent, toolCallId, timestamp.toISOString()],
     );
   } catch (error) {
     console.error(
@@ -181,6 +209,7 @@ export const saveChatMessagesToDb = async (
       msg.role,
       msg.content,
       msg.timestamp,
+      msg.tool_call_id || null,
     );
   }
 };

@@ -76,7 +76,8 @@ Initializing new database object from ${dbPath}.`,
         chat_id TEXT NOT NULL,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
-        timestamp DATETIME
+        tool_call_id TEXT,
+        timestamp DATETIME NOT NULL
       )
     `);
   } catch (error) {

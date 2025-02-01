@@ -23,9 +23,12 @@ export interface DbCacheEntry {
   refCount: number;
 }
 
+
+
 export interface DbChatMessage {
   role: "user" | "assistant" | "tool";
-  content: string;
+  content: string | OpenAI.ChatCompletionContentPart[];
+  tool_call_id?: string;
   timestamp: Date;
 }
 
@@ -54,12 +57,12 @@ export interface ChatMessageQueue {
 // LLM interfaces
 export interface ChatPrompt {
   modelName: string;
-  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+  messages: OpenAI.ChatCompletionMessageParam[];
   useTools: boolean;
 }
 
 export interface ChatParameters
-  extends OpenAI.Chat.ChatCompletionCreateParamsNonStreaming {
+  extends OpenAI.ChatCompletionCreateParamsNonStreaming {
   top_k?: number | null;
   repeat_penalty?: number | null;
   min_p?: number | null;
@@ -67,18 +70,17 @@ export interface ChatParameters
   include_reasoning?: boolean | null;
 }
 
-interface ErrorResponse {
+export interface ErrorResponse {
   code: number;
   message: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface ChatResponse extends OpenAI.Chat.ChatCompletion {
+export interface ChatResponse extends OpenAI.ChatCompletion {
   error?: ErrorResponse;
 }
 
-export interface LLMChatMessage
-  extends OpenAI.Chat.Completions.ChatCompletionMessage {
+export interface LLMChatMessage extends OpenAI.ChatCompletionMessage {
   reasoning_content?: string;
   reasoning?: string;
 }
