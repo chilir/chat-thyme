@@ -155,6 +155,14 @@ export const processUserMessage = async (
     );
 
     currentChatMessages.push({ role: "user", content: discordMessageContent });
+    await saveChatMessageToDb(
+      userDb,
+      chatThreadInfo.userId,
+      chatThreadInfo.chatId,
+      "user",
+      discordMessageContent,
+      discordMessageTimestamp,
+    );
 
     response = await chatWithModel(
       modelClient,
@@ -190,15 +198,6 @@ export const processUserMessage = async (
       role: "assistant",
       content: formattedContent,
     });
-
-    await saveChatMessageToDb(
-      userDb,
-      chatThreadInfo.userId,
-      chatThreadInfo.chatId,
-      "user",
-      discordMessageContent,
-      discordMessageTimestamp,
-    );
     await saveChatMessageToDb(
       userDb,
       chatThreadInfo.userId,

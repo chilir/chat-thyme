@@ -13,7 +13,6 @@ import type {
 import { chatWithModel } from "./llm-service";
 import {
   extractMessageContent,
-  formatResponse,
   processOpenRouterContent,
   saveChatMessagesToDb,
 } from "./utils";
@@ -118,7 +117,6 @@ export const processToolCalls = async (
   userId: string,
   chatId: string,
 ): Promise<ProcessedMessageContent> => {
-  const timestamp = new Date();
   const messagesToSave: DbChatMessage[] = [];
 
   for (const toolCall of toolCalls) {
@@ -178,16 +176,6 @@ export const processToolCalls = async (
   );
   const { msgContent: finalContent, reasoningContent: finalReasoning } =
     processOpenRouterContent(msgContent, reasoningContent, response.choices);
-  // const formattedContent = formatResponse(
-  //   finalContent as string,
-  //   finalReasoning,
-  // );
-
-  // messagesToSave.push({
-  //   role: "assistant",
-  //   content: formattedContent,
-  //   timestamp: new Date(response.created * 1000),
-  // });
 
   await saveChatMessagesToDb(userDb, userId, chatId, messagesToSave);
 
