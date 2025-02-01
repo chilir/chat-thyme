@@ -9,7 +9,7 @@ import type {
 import type Exa from "exa-js";
 import type OpenAI from "openai";
 
-// Database related interfaces
+// db/cache related interfaces
 export interface DbCache {
   cache: Map<string, DbCacheEntry>;
   mutex: Mutex;
@@ -23,16 +23,14 @@ export interface DbCacheEntry {
   refCount: number;
 }
 
-
-
-export interface DbChatMessage {
+export interface DbChatMessageToSave {
   role: "user" | "assistant" | "tool";
   content: string | OpenAI.ChatCompletionContentPart[];
   tool_call_id?: string;
   timestamp: Date;
 }
 
-// Client interfaces
+// interface for holding client objects
 export interface ChatThymeClients {
   modelClient: OpenAI;
   discordClient: DiscordClient;
@@ -41,12 +39,12 @@ export interface ChatThymeClients {
 
 // Discord chat thread management interfaces
 export interface ChatIdExistence {
-  exists: number; // 1 if exists, 0 if not
+  exists: 0 | 1; // 1 if exists, 0 if not
 }
 export interface ChatThreadInfo {
-  chatId: string;
   userId: string;
-  modelOptions: Partial<ChatParameters>;
+  chatId: string;
+  modelOptions: Partial<ExpandedChatParameters>;
 }
 
 export interface ChatMessageQueue {
@@ -54,14 +52,14 @@ export interface ChatMessageQueue {
   stopSignal: boolean;
 }
 
-// LLM interfaces
+// model interaction interfaces
 export interface ChatPrompt {
   modelName: string;
   messages: OpenAI.ChatCompletionMessageParam[];
   useTools: boolean;
 }
 
-export interface ChatParameters
+export interface ExpandedChatParameters
   extends OpenAI.ChatCompletionCreateParamsNonStreaming {
   top_k?: number | null;
   repeat_penalty?: number | null;
@@ -70,22 +68,24 @@ export interface ChatParameters
   include_reasoning?: boolean | null;
 }
 
-export interface ErrorResponse {
+interface ErrorResponse {
   code: number;
   message: string;
   metadata?: Record<string, unknown>;
 }
 
-export interface ChatResponse extends OpenAI.ChatCompletion {
+export interface ExpandedChatResponse extends OpenAI.ChatCompletion {
   error?: ErrorResponse;
 }
 
-export interface LLMChatMessage extends OpenAI.ChatCompletionMessage {
+export interface ExpandedChatCompletionMessage
+  extends OpenAI.ChatCompletionMessage {
   reasoning_content?: string;
   reasoning?: string;
 }
 
 export interface ProcessedMessageContent {
+  timestamp: Date;
   msgContent: string | null;
   reasoningContent?: string;
 }
