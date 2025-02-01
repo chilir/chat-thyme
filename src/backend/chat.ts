@@ -20,8 +20,6 @@ import {
   saveChatMessageToDb,
 } from "./utils";
 
-// Remove the getChatHistoryFromDb function
-
 /**
  * Extracts and processes content from model response choices.
  * Handles different types of responses including content filtering, tool calls,

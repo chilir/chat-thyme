@@ -8,7 +8,6 @@ import {
   mock,
   spyOn,
 } from "bun:test";
-import type { Mutex } from "async-mutex";
 import type Exa from "exa-js";
 import type { OpenAI } from "openai";
 import tmp from "tmp";
