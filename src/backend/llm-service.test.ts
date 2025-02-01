@@ -1,13 +1,13 @@
-// src/llm-service.test.ts
+// src/backend/llm-service.test.ts
 
 import { describe, expect, it, mock } from "bun:test";
-import type OpenAI from "openai";
-import { CHAT_THYME_TOOLS } from "./tools";
+import { APIError, type OpenAI } from "openai";
 import type { ChatPrompt } from "../interfaces";
 import { chatWithModel } from "./llm-service";
+import { CHAT_THYME_TOOLS } from "./tools";
 
 describe("LLM Service", () => {
-  const mockResponse: OpenAI.Chat.ChatCompletion = {
+  const mockResponse: OpenAI.ChatCompletion = {
     id: "mock-completion-id",
     object: "chat.completion",
     created: Date.now(),
@@ -69,19 +69,18 @@ describe("LLM Service", () => {
     });
   });
 
-  it("should handle error response from API", async () => {
-    const mockErrorResponse = {
-      error: {
-        code: 500,
-        message: "Internal Server Error",
-        metadata: { detail: "Test error" },
-      },
-    };
-
-    const mockOpenAIClient = {
+  it("should handle rate limit errors specifically", async () => {
+    const mockErrorClient = {
       chat: {
         completions: {
-          create: mock(async () => mockErrorResponse),
+          create: mock(async () => {
+            throw new APIError(
+              429,
+              { message: "Too many requests" },
+              "Too many requests",
+              {},
+            );
+          }),
         },
       },
     } as unknown as OpenAI;
@@ -92,8 +91,90 @@ describe("LLM Service", () => {
       useTools: false,
     };
 
-    expect(chatWithModel(mockOpenAIClient, prompt, {})).rejects.toThrow(
-      "Error during model interaction: Internal Server Error",
+    expect(chatWithModel(mockErrorClient, prompt, {})).rejects.toThrow(
+      "Rate limit exceeded",
     );
-  });
+  }, 10000);
+
+  it("should pass through other API error messages", async () => {
+    const mockErrorClient = {
+      chat: {
+        completions: {
+          create: mock(async () => {
+            throw new APIError(
+              500,
+              { message: "Server error" },
+              "Server error",
+              {},
+            );
+          }),
+        },
+      },
+    } as unknown as OpenAI;
+
+    const prompt: ChatPrompt = {
+      modelName: "test-model",
+      messages: [{ role: "user", content: "Hello" }],
+      useTools: false,
+    };
+
+    expect(chatWithModel(mockErrorClient, prompt, {})).rejects.toThrow(
+      "Server error",
+    );
+  }, 10000);
+
+  it("should handle unknown errors", async () => {
+    const mockErrorClient = {
+      chat: {
+        completions: {
+          create: mock(async () => {
+            throw new Error("Unknown error occurred");
+          }),
+        },
+      },
+    } as unknown as OpenAI;
+
+    const prompt: ChatPrompt = {
+      modelName: "test-model",
+      messages: [{ role: "user", content: "Hello" }],
+      useTools: false,
+    };
+
+    expect(chatWithModel(mockErrorClient, prompt, {})).rejects.toThrow(
+      "Unknown error occurred during model interaction.",
+    );
+  }, 10000);
+
+  it("should remove unprocessed message on error", async () => {
+    const mockErrorClient = {
+      chat: {
+        completions: {
+          create: mock(async () => {
+            throw new APIError(
+              500,
+              { message: "Server error" },
+              "Server error",
+              {},
+            );
+          }),
+        },
+      },
+    } as unknown as OpenAI;
+
+    const prompt: ChatPrompt = {
+      modelName: "test-model",
+      messages: [
+        { role: "user", content: "First message" },
+        { role: "user", content: "Second message" },
+      ],
+      useTools: false,
+    };
+
+    try {
+      await chatWithModel(mockErrorClient, prompt, {});
+    } catch (error) {
+      expect(prompt.messages).toHaveLength(1);
+      expect(prompt.messages[0]?.content).toBe("First message");
+    }
+  }, 10000);
 });
