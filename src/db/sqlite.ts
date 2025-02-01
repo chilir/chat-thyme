@@ -6,19 +6,21 @@ import path from "node:path";
 import type { DbCache, DbCacheEntry } from "../interfaces";
 
 /**
+ * TODO: split up this function to smaller helper functions
+ *
  * Gets an existing database connection from cache or initializes a new one.
  * Creates necessary directory structure and database schema if they don't
- * exist. The schema includes a chat_messages table and an index for efficient
+ * exist. The schema includes a `chat_messages` table and an index for efficient
  * queries. LRU cache eviction is done on a best-effort basis depending on
  * whether or not any database connections are in use.
  *
- * @param {string} userId - The Discord user ID to get/create database for
- * @param {DbCache} userDbCache - The database connection cache with mutex and
- *   eviction settings
- * @param {string} dbDir - The directory path where database files are stored
- * @param {number} dbConnectionCacheSize - Maximum number of database
+ * @param {string} userId - Discord user ID
+ * @param {DbCache} userDbCache - Database connection cache with mutex and
+ *   background eviction
+ * @param {string} dbDir - Directory path where database files are stored
+ * @param {number} dbConnectionCacheSize - Desired maximum number of database
  *   connections to keep in cache
- * @returns {Promise<Database>} The database connection
+ * @returns {Promise<Database>} Database connection for the user
  * @throws Will throw an error if database directory creation, file operations,
  *   or schema initialization fails
  */
@@ -86,11 +88,11 @@ Initializing new database object from ${dbPath}.`,
     throw error;
   }
 
-  // Composite index for `chat_id` and message `id` columns (most used)
+  // Composite index for `chat_id` and `timestamp` columns (most used)
   try {
     db.run(`
-      CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_id ON chat_messages(
-        chat_id, id
+      CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id_timestamp ON chat_messages(
+        chat_id, timestamp
       )
     `);
   } catch (error) {
@@ -101,9 +103,9 @@ Initializing new database object from ${dbPath}.`,
 
   const addDbToCacheRelease = await userDbCache.mutex.acquire();
   try {
-    // Best effort LRU cache eviction
+    // best effort LRU cache eviction
+    // no eviction if all db connections are in use
     if (userDbCache.cache.size >= dbConnectionCacheSize) {
-      // Find the least recently used entry with refCount 0
       let keyToEvict: string | undefined;
       let entryToEvict: DbCacheEntry | undefined;
       for (const [k, v] of userDbCache.cache.entries()) {
@@ -127,7 +129,7 @@ Initializing new database object from ${dbPath}.`,
       filePath: dbPath,
       db: db,
       lastAccessed: Date.now(),
-      refCount: 1, // initial ref count
+      refCount: 1, // initial ref count since db will be used by caller
     });
   } finally {
     addDbToCacheRelease();
@@ -141,9 +143,8 @@ Initializing new database object from ${dbPath}.`,
  * This allows the connection to be cleaned up by the cache eviction process
  * when the reference count reaches 0.
  *
- * @param {string} userId - The Discord user ID whose database connection to
- * release
- * @param {DbCache} userDbCache - The database connection cache
+ * @param {string} userId - Discord user ID
+ * @param {DbCache} userDbCache - Database connection cache
  * @returns {Promise<void>}
  */
 export const releaseUserDb = async (

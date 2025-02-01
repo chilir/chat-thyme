@@ -27,7 +27,7 @@ describe("SQLite Database Operations", () => {
 
   afterEach(async () => {
     await clearUserDbCache(userDbCache);
-    tmpDir.removeCallback(); // Explicitly remove temp directory
+    tmpDir.removeCallback();
   });
 
   describe("Basic Database Operations", () => {
@@ -39,13 +39,11 @@ describe("SQLite Database Operations", () => {
         testDbConnectionCacheSize,
       );
       expect(db).toBeInstanceOf(Database);
-      console.log(userDbCache.cache);
       expect(userDbCache.cache.has(userId)).toBe(true);
 
       const cacheEntry = userDbCache.cache.get(userId) as DbCacheEntry;
       expect(cacheEntry.refCount).toBe(1);
 
-      // Verify schema creation
       const tables = db
         .prepare(
           "SELECT name FROM sqlite_master WHERE type='table' AND name='chat_messages'",
@@ -55,7 +53,7 @@ describe("SQLite Database Operations", () => {
 
       const indexes = db
         .prepare(
-          "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_chat_messages_chat_id_id'",
+          "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_chat_messages_chat_id_timestamp'",
         )
         .all();
       expect(indexes.length).toBe(1);
@@ -76,8 +74,8 @@ describe("SQLite Database Operations", () => {
         tmpDir.name,
         testDbConnectionCacheSize,
       );
-
       expect(db1).toBe(db2);
+
       const cacheEntry = userDbCache.cache.get(userId) as DbCacheEntry;
       expect(cacheEntry.refCount).toBe(2);
     });
@@ -86,7 +84,7 @@ describe("SQLite Database Operations", () => {
       const userId2 = `${userId}-2`;
       const userId3 = `${userId}-3`;
 
-      // Fill cache to limit
+      // fill cache to limit
       await getOrInitUserDb(
         userId,
         userDbCache,
@@ -102,7 +100,7 @@ describe("SQLite Database Operations", () => {
 
       await releaseUserDb(userId, userDbCache);
 
-      // Add another connection that should evict user 1
+      // should evict user 1
       await getOrInitUserDb(
         userId3,
         userDbCache,
@@ -127,7 +125,7 @@ describe("SQLite Database Operations", () => {
 
     expect(() => db.prepare("CORRUPTED SQL STATEMENT").run()).toThrow();
 
-    // Database should still be usable
+    // should still be usable
     const validQuery = db.prepare("SELECT 1").get();
     expect(validQuery).toBeDefined();
   });
@@ -140,11 +138,7 @@ describe("SQLite Database Operations", () => {
         tmpDir.name,
         testDbConnectionCacheSize,
       );
-      if (!firstDb) throw new Error("First database connection is undefined");
-
       const concurrentAccesses = 10;
-
-      // Create multiple concurrent requests for the first db
       const requests = Array(concurrentAccesses)
         .fill(null)
         .map(() =>
@@ -155,16 +149,14 @@ describe("SQLite Database Operations", () => {
             testDbConnectionCacheSize,
           ),
         );
-
       const results = await Promise.all(requests);
 
-      // All requests should return the same database instance
+      // all requests should return the same database instance
       for (const db of results) {
-        if (!db) throw new Error("Database connection is undefined");
         expect(db).toBe(firstDb);
       }
 
-      // Reference count should match concurrent access count
+      // ref count should match concurrent access count + initial count
       expect(userDbCache.cache.get(userId)?.refCount).toBe(
         concurrentAccesses + 1,
       );
@@ -173,7 +165,7 @@ describe("SQLite Database Operations", () => {
     it("should handle concurrent cache eviction", async () => {
       const promises = [];
 
-      // Create more concurrent connections than cache size
+      // create more concurrent connections than cache size
       for (let i = 0; i < testDbConnectionCacheSize + 2; i++) {
         promises.push(async () => {
           await getOrInitUserDb(
@@ -201,17 +193,15 @@ describe("SQLite Database Operations", () => {
         tmpDir.name,
         testDbConnectionCacheSize,
       );
-
       const indexes = db
         .prepare(`
         SELECT name, sql FROM sqlite_master
         WHERE type='index' AND tbl_name='chat_messages'
       `)
         .all();
-
       expect(indexes).toContainEqual(
         expect.objectContaining({
-          name: "idx_chat_messages_chat_id_id",
+          name: "idx_chat_messages_chat_id_timestamp",
         }),
       );
     });
@@ -223,14 +213,13 @@ describe("SQLite Database Operations", () => {
         tmpDir.name,
         testDbConnectionCacheSize,
       );
-
       // Test NOT NULL constraints
       expect(() =>
         db
           .prepare(
-            "INSERT INTO chat_messages (chat_id, role, content) VALUES (?, ?, ?)",
+            "INSERT INTO chat_messages (chat_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
           )
-          .run(null, "user", "test"),
+          .run(null, "user", "test", null),
       ).toThrow();
     });
   });
