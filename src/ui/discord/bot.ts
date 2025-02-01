@@ -64,10 +64,9 @@ export const setupDiscordBot = (
   clients.discordClient.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
     console.debug("----------\n");
-    console.debug(
-      `Interaction received: ${interaction.commandName}`);
+    console.debug(`Interaction received: ${interaction.commandName}`);
     console.debug(`User: ${interaction.user.tag}`);
-    console.debug("Options:"
+    console.debug("Options:");
     console.debug(JSON.stringify(interaction.options.data));
     if (interaction.commandName === "start-chat") {
       console.debug("Handling start-chat command.");
