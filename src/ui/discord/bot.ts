@@ -5,7 +5,7 @@ import type {
   ChatMessageQueue,
   ChatThreadInfo,
   ChatThymeClients,
-  dbCache,
+  DbCache,
 } from "../../interfaces";
 import { resumeChatCommandData, startChatCommandData } from "./commands";
 import {
@@ -18,7 +18,7 @@ import { startArchivedThreadEviction } from "./utils";
 export const setupDiscordBot = (
   clients: ChatThymeClients,
   config: ChatThymeConfig,
-  userDbCache: dbCache,
+  userDbCache: DbCache,
 ) => {
   const activeChatThreads = new Map<string, ChatThreadInfo>();
   const chatMessageQueues = new Map<string, ChatMessageQueue>();
@@ -63,10 +63,12 @@ export const setupDiscordBot = (
   // Command interaction
   clients.discordClient.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
+    console.debug("----------\n");
     console.debug(
-      `Interaction received: ${interaction.commandName}, User: \
-${interaction.user.tag}, Options: ${JSON.stringify(interaction.options.data)}`,
-    );
+      `Interaction received: ${interaction.commandName}`);
+    console.debug(`User: ${interaction.user.tag}`);
+    console.debug("Options:"
+    console.debug(JSON.stringify(interaction.options.data));
     if (interaction.commandName === "start-chat") {
       console.debug("Handling start-chat command.");
       await handleStartChatCommand(
@@ -100,9 +102,10 @@ ${interaction.user.tag}, Options: ${JSON.stringify(interaction.options.data)}`,
         await handleUserMessage(
           chatMessageQueues,
           chatThreadInfo,
-          clients.modelClient,
-          config,
           userDbCache,
+          config,
+          clients.modelClient,
+          clients.exaClient,
           discordMessage,
         );
       }

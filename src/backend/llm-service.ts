@@ -1,8 +1,8 @@
 // src/llm-service.ts
 
 import type { OpenAI } from "openai";
-import { CHAT_THYME_TOOLS } from "./tools";
 import type { ChatParameters, ChatPrompt, ChatResponse } from "../interfaces";
+import { CHAT_THYME_TOOLS } from "./tools";
 /**
  * Sends a chat request to the model and returns the response.
  * This function handles the direct interaction with the model server via
@@ -27,6 +27,7 @@ export const chatWithModel = async (
   })) as ChatResponse;
 
   if (response.error) {
+    console.debug("----------\n");
     console.debug(response.error);
     console.debug(`Model response error code: ${response.error.code}`);
     console.debug(`Model response error message: ${response.error.message}`);

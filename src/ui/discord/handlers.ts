@@ -5,6 +5,7 @@ import type {
   ChatInputCommandInteraction,
   Message as DiscordMessage,
 } from "discord.js";
+import type Exa from "exa-js";
 import type OpenAI from "openai";
 import {
   adjectives,
@@ -18,7 +19,7 @@ import type {
   ChatIdExistence,
   ChatMessageQueue,
   ChatThreadInfo,
-  dbCache,
+  DbCache,
 } from "../../interfaces";
 import {
   chatIdentifierExistenceQuery,
@@ -28,7 +29,7 @@ import {
 
 export const handleStartChatCommand = async (
   interaction: ChatInputCommandInteraction,
-  userDbCache: dbCache,
+  userDbCache: DbCache,
   dbDir: string,
   dbConnectionCacheSize: number,
   discordSlowModeInterval: number,
@@ -36,21 +37,12 @@ export const handleStartChatCommand = async (
 ) => {
   await interaction.deferReply({ ephemeral: true });
 
-  let userDb: Database;
-  try {
-    userDb = await getOrInitUserDb(
-      interaction.user.id,
-      userDbCache,
-      dbDir,
-      dbConnectionCacheSize,
-    );
-  } catch (error) {
-    console.error(
-      `Error getting/initializing user database for ${interaction.user.id}:`,
-      error,
-    );
-    throw error;
-  }
+  const userDb = await getOrInitUserDb(
+    interaction.user.id,
+    userDbCache,
+    dbDir,
+    dbConnectionCacheSize,
+  );
 
   // Generate a unique chat identifier - regenerate if value already exists in
   // user DB
@@ -87,7 +79,7 @@ export const handleStartChatCommand = async (
 
 export const handleResumeChatCommand = async (
   interaction: ChatInputCommandInteraction,
-  userDbCache: dbCache,
+  userDbCache: DbCache,
   dbDir: string,
   dbConnectionCacheSize: number,
   discordSlowModeInterval: number,
@@ -95,21 +87,12 @@ export const handleResumeChatCommand = async (
 ) => {
   await interaction.deferReply({ ephemeral: true });
 
-  let userDb: Database;
-  try {
-    userDb = await getOrInitUserDb(
-      interaction.user.id,
-      userDbCache,
-      dbDir,
-      dbConnectionCacheSize,
-    );
-  } catch (error) {
-    console.error(
-      `Error getting/initializing user database for ${interaction.user.id}:`,
-      error,
-    );
-    throw error;
-  }
+  const userDb = await getOrInitUserDb(
+    interaction.user.id,
+    userDbCache,
+    dbDir,
+    dbConnectionCacheSize,
+  );
   const chatId = interaction.options.getString("chat_identifier", true);
 
   let chatIdExists: ChatIdExistence;
@@ -149,9 +132,10 @@ export const handleResumeChatCommand = async (
 export const handleUserMessage = async (
   chatMessageQueues: Map<string, ChatMessageQueue>,
   chatThreadInfo: ChatThreadInfo,
-  modelClient: OpenAI,
+  userDbCache: DbCache,
   config: ChatThymeConfig,
-  userDbCache: dbCache,
+  modelClient: OpenAI,
+  exaClient: Exa | undefined,
   discordMessage: DiscordMessage,
 ) => {
   let messageQueueEntry = chatMessageQueues.get(chatThreadInfo.chatId);
@@ -161,16 +145,16 @@ export const handleUserMessage = async (
     startQueueWorker(
       chatMessageQueues,
       chatThreadInfo,
-      modelClient,
-      config,
       userDbCache,
+      config,
+      modelClient,
+      exaClient,
     );
   }
 
   messageQueueEntry.queue.push(discordMessage);
-  console.debug(
-    `Queued message ${discordMessage.content} for chat \
-${chatThreadInfo.chatId}. Current queue size: \
-${messageQueueEntry.queue.length}`,
-  );
+  console.debug("----------\n");
+  console.debug(`Queued message in chat ${chatThreadInfo.chatId}:`);
+  console.debug(discordMessage.content);
+  console.debug(`Current queue size: ${messageQueueEntry.queue.length}`);
 };

@@ -81,6 +81,10 @@ const processExaSearchCall = async (
     return null;
   });
 
+  console.debug("----------\n");
+  console.debug("Exa search results:");
+  console.debug(searchResults);
+
   return {
     role: "tool",
     content: searchResults
@@ -139,7 +143,7 @@ export const processToolCalls = async (
     {
       role: "user",
       content:
-        "Please summarize this information and answer my previous query based on these results.",
+        "Please answer my previous query based on these search results.",
     };
   currentChatMessages.push(useToolResponsePrompt);
   messagesToSave.push({

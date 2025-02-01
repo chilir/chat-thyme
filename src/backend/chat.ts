@@ -173,7 +173,6 @@ export const processUserMessage = async (
       },
       chatThreadInfo.modelOptions,
     );
-    console.debug(currentChatMessages);
 
     const result = await extractChoiceContent(
       response.choices,
@@ -192,7 +191,12 @@ export const processUserMessage = async (
       result.reasoningContent,
     );
 
-    console.debug(`Response from model: ${formattedContent}`);
+    console.debug("----------\n");
+    console.debug("Current chat messages:");
+    console.debug(currentChatMessages);
+    console.debug("----------\n");
+    console.debug("Response from model:");
+    console.debug(formattedContent);
 
     currentChatMessages.push({
       role: "assistant",

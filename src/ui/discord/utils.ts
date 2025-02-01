@@ -9,17 +9,27 @@ import {
   type ThreadChannel,
 } from "discord.js";
 
+import type Exa from "exa-js";
 import type OpenAI from "openai";
 import pRetry from "p-retry";
-import { processUserMessage } from "../../chat";
+import { processUserMessage } from "../../backend";
 import type { ChatThymeConfig } from "../../config";
 import type {
   ChatMessageQueue,
   ChatParameters,
   ChatThreadInfo,
-  dbCache,
+  DbCache,
 } from "../../interfaces";
 
+/**
+ * Periodically checks for archived threads and removes them from active tracking.
+ * Also locks archived threads to prevent further interactions.
+ *
+ * @param discordClient - Discord client instance used to fetch channel information
+ * @param activeChatThreads - Map of active chat threads keyed by channel ID
+ * @param chatMessageQueues - Map of message queues for each chat
+ * @returns NodeJS.Timeout - Interval handle for the eviction process
+ */
 export const startArchivedThreadEviction = (
   discordClient: DiscordClient,
   activeChatThreads: Map<string, ChatThreadInfo>,
@@ -57,6 +67,13 @@ export const startArchivedThreadEviction = (
 export const chatIdentifierExistenceQuery =
   "SELECT EXISTS(SELECT 1 FROM chat_messages WHERE chat_id = ?) AS 'exists'";
 
+/**
+ * Extracts model-specific parameters from a Discord command interaction.
+ * Returns a combined object of ChatParameters and top_k value.
+ *
+ * @param interaction - Discord command interaction containing the parameter options
+ * @returns Object containing model parameters and top_k value
+ */
 export const getModelOptions = (
   interaction: ChatInputCommandInteraction,
 ): Partial<ChatParameters> & {
@@ -88,6 +105,17 @@ export const getModelOptions = (
   };
 };
 
+/**
+ * Creates a new Discord thread for chat interaction with retry logic.
+ * Configures thread settings and adds it to active threads tracking.
+ *
+ * @param interaction - Discord command interaction
+ * @param chatId - Unique identifier for the chat session
+ * @param newDiscordThreadReason - Reason for creating the new thread
+ * @param slowModeInterval - Slow mode interval in seconds
+ * @param activeChatThreads - Map to track active chat threads
+ * @throws Will throw an error if thread creation fails after all retries
+ */
 export const createDiscordThread = async (
   interaction: ChatInputCommandInteraction,
   chatId: string,
@@ -95,38 +123,31 @@ export const createDiscordThread = async (
   slowModeInterval: number,
   activeChatThreads: Map<string, ChatThreadInfo>,
 ): Promise<void> => {
-  // Get user specified Discord thread properties
   const autoArchiveMinutes =
     interaction.options.getInteger("auto_archive_minutes") ?? 60;
   const threadName = interaction.options.getString("thread_name")
     ? `(${chatId}) ${interaction.options.getString("thread_name")}`
     : `Chat with ${interaction.user.username}: ${chatId}`;
 
-  // Define the retryable operation (thread creation logic)
+  // retryable operation
   const operation = async () => {
-    let newDiscordThread: ThreadChannel;
-    try {
-      newDiscordThread = (await (
-        interaction.channel as TextChannel
-      )?.threads.create({
-        name: threadName,
-        type: ChannelType.PrivateThread,
-        autoArchiveDuration: autoArchiveMinutes,
-        reason: newDiscordThreadReason,
-      })) as ThreadChannel;
+    const newDiscordThread = (await (
+      interaction.channel as TextChannel
+    )?.threads.create({
+      name: threadName,
+      type: ChannelType.PrivateThread,
+      autoArchiveDuration: autoArchiveMinutes,
+      reason: newDiscordThreadReason,
+    })) as ThreadChannel;
 
-      if (!newDiscordThread) {
-        throw new Error(
-          "Failed to create Discord thread - no Discord thread channel returned",
-        ); // Throw error to trigger retry
-      }
-
-      newDiscordThread.setRateLimitPerUser(slowModeInterval);
-      return newDiscordThread; // Return successful thread object
-    } catch (error) {
-      console.error("Error creating Discord thread (attempting retry):", error);
-      throw error; // Re-throw error to trigger p-retry
+    if (!newDiscordThread) {
+      throw new Error(
+        "Failed to create Discord thread - no Discord thread channel returned",
+      ); // Throw error to trigger retry
     }
+
+    newDiscordThread.setRateLimitPerUser(slowModeInterval);
+    return newDiscordThread;
   };
 
   // retry + exponential backoff for thread creation
@@ -161,15 +182,28 @@ export const createDiscordThread = async (
       `Error creating Discord thread after multiple retries: ${errorMessage}`,
     );
     console.error("Error creating Discord thread after retries failed:", error);
+    throw error;
   }
 };
 
+/**
+ * Initiates a worker to process messages from a chat queue.
+ * Handles message processing and error handling in an infinite loop.
+ *
+ * @param chatMessageQueues - Map of message queues for each chat
+ * @param chatThreadInfo - Information about the chat thread
+ * @param userDbCache - Database connection cache
+ * @param config - Application configuration
+ * @param modelClient - OpenAI client instance
+ * @param exaClient - Optional Exa client for web searches
+ */
 export const startQueueWorker = (
   chatMessageQueues: Map<string, ChatMessageQueue>,
   chatThreadInfo: ChatThreadInfo,
-  modelClient: OpenAI,
+  userDbCache: DbCache,
   config: ChatThymeConfig,
-  userDbCache: dbCache,
+  modelClient: OpenAI,
+  exaClient: Exa | undefined,
 ) => {
   let messageQueueEntry = chatMessageQueues.get(chatThreadInfo.chatId);
   if (!messageQueueEntry) {
@@ -201,11 +235,16 @@ and is exiting.`,
           }
 
           await processMessageFromQueue(
-            modelClient,
             chatThreadInfo,
-            discordMessage,
-            config,
             userDbCache,
+            config.dbDir,
+            config.dbConnectionCacheSize,
+            config.systemPrompt,
+            discordMessage,
+            modelClient,
+            config.model,
+            config.useTools,
+            exaClient,
           );
         } catch (error) {
           console.error(
@@ -224,23 +263,46 @@ ${discordMessage.content}.`,
   })();
 };
 
+/**
+ * Processes a single message from the queue and sends the response.
+ * Handles message splitting for responses exceeding Discord's length limit.
+ *
+ * @param chatThreadInfo - Information about the chat thread
+ * @param userDbCache - Database connection cache
+ * @param dbDir - Directory path for database files
+ * @param dbConnectionCacheSize - Maximum number of cached database connections
+ * @param systemPrompt - System prompt for the chat
+ * @param discordMessage - Discord message to process
+ * @param modelClient - OpenAI client instance
+ * @param model - Name of the model to use
+ * @param useTools - Whether to allow tool usage
+ * @param exaClient - Optional Exa client for web searches
+ */
 export const processMessageFromQueue = async (
-  modelClient: OpenAI,
   chatThreadInfo: ChatThreadInfo,
+  userDbCache: DbCache,
+  dbDir: string,
+  dbConnectionCacheSize: number,
+  systemPrompt: string,
   discordMessage: DiscordMessage,
-  config: ChatThymeConfig,
-  userDbCache: dbCache,
+  modelClient: OpenAI,
+  model: string,
+  useTools: boolean,
+  exaClient: Exa | undefined,
 ) => {
   try {
     const response = await processUserMessage(
-      modelClient,
-      chatThreadInfo.userId,
-      chatThreadInfo.chatId,
+      chatThreadInfo,
+      userDbCache,
+      dbDir,
+      dbConnectionCacheSize,
+      systemPrompt,
       discordMessage.content,
       discordMessage.createdAt,
-      chatThreadInfo.modelOptions,
-      config,
-      userDbCache,
+      modelClient,
+      model,
+      useTools,
+      exaClient,
     );
 
     // Discord has a message limit of 2000
@@ -263,7 +325,8 @@ export const processMessageFromQueue = async (
     console.error("Error during chat:", error);
     const errorMessage = error instanceof Error ? error.message : `${error}`;
     discordMessage.reply(
-      `Sorry, I encountered an error while processing your request: ${errorMessage}.`,
+      `Sorry, I encountered an error while processing your request: \
+${errorMessage}.`,
     );
   }
 };
