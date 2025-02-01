@@ -7,8 +7,8 @@ import { getOrInitUserDb, releaseUserDb } from "../db/sqlite";
 import type {
   ChatParameters,
   ChatThreadInfo,
+  DbCache,
   ProcessedMessageContent,
-  dbCache,
 } from "../interfaces";
 import { chatWithModel } from "./llm-service";
 import { processToolCalls } from "./tools";
@@ -111,7 +111,7 @@ export const extractChoiceContent = async (
  * 5. Formatting the final response
  *
  * @param {ChatThreadInfo} chatThreadInfo - Information about the chat thread
- * @param {dbCache} userDbCache - Database connection cache
+ * @param {DbCache} userDbCache - Database connection cache
  * @param {string} dbDir - Directory path for database files
  * @param {number} dbConnectionCacheSize - Maximum number of cached database connections
  * @param {string} systemPrompt - System prompt to prepend to chat history
@@ -126,7 +126,7 @@ export const extractChoiceContent = async (
  */
 export const processUserMessage = async (
   chatThreadInfo: ChatThreadInfo,
-  userDbCache: dbCache,
+  userDbCache: DbCache,
   dbDir: string,
   dbConnectionCacheSize: number,
   systemPrompt: string,

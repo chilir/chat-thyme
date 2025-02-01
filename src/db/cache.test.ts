@@ -2,7 +2,7 @@
 
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import type { dbCache } from "../interfaces";
+import type { DbCache } from "../interfaces";
 import {
   backgroundEvictExpiredDbs,
   clearUserDbCache,
@@ -10,7 +10,7 @@ import {
 } from "./cache";
 
 describe("In-Memory Database Cache", () => {
-  let userDbCache: dbCache;
+  let userDbCache: DbCache;
   let mockDb: Database;
   const testDbConnectionCacheTtl = 100;
   const testDbConnectionCacheEvictionInterval = 50;

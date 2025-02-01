@@ -10,7 +10,7 @@ import type Exa from "exa-js";
 import type OpenAI from "openai";
 
 // Database related interfaces
-export interface dbCache {
+export interface DbCache {
   cache: Map<string, DbCacheEntry>;
   mutex: Mutex;
   evictionInterval: ReturnType<typeof setInterval> | undefined;

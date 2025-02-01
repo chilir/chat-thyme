@@ -3,7 +3,7 @@
 import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { DbCacheEntry, dbCache } from "../interfaces";
+import type { DbCache, DbCacheEntry } from "../interfaces";
 
 /**
  * Gets an existing database connection from cache or initializes a new one.
@@ -13,7 +13,7 @@ import type { DbCacheEntry, dbCache } from "../interfaces";
  * whether or not any database connections are in use.
  *
  * @param {string} userId - The Discord user ID to get/create database for
- * @param {dbCache} userDbCache - The database connection cache with mutex and
+ * @param {DbCache} userDbCache - The database connection cache with mutex and
  *   eviction settings
  * @param {string} dbDir - The directory path where database files are stored
  * @param {number} dbConnectionCacheSize - Maximum number of database
@@ -24,7 +24,7 @@ import type { DbCacheEntry, dbCache } from "../interfaces";
  */
 export const getOrInitUserDb = async (
   userId: string,
-  userDbCache: dbCache,
+  userDbCache: DbCache,
   dbDir: string,
   dbConnectionCacheSize: number,
 ): Promise<Database> => {
@@ -142,12 +142,12 @@ Initializing new database object from ${dbPath}.`,
  *
  * @param {string} userId - The Discord user ID whose database connection to
  * release
- * @param {dbCache} userDbCache - The database connection cache
+ * @param {DbCache} userDbCache - The database connection cache
  * @returns {Promise<void>}
  */
 export const releaseUserDb = async (
   userId: string,
-  userDbCache: dbCache,
+  userDbCache: DbCache,
 ): Promise<void> => {
   const release = await userDbCache.mutex.acquire();
   try {

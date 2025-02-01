@@ -1,9 +1,9 @@
 // src/signalhandlers.ts
 
 import { clearUserDbCache } from "./db";
-import type { dbCache } from "./interfaces";
+import type { DbCache } from "./interfaces";
 
-export const setupSignalHandlers = (userDbCache: dbCache) => {
+export const setupSignalHandlers = (userDbCache: DbCache) => {
   process.on("SIGINT", async () => {
     console.info("SIGINT received. Cleaning up user DB cache...");
     try {

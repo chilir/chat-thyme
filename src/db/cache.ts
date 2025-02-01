@@ -1,7 +1,7 @@
 // src/db/cache.ts
 
 import { Mutex } from "async-mutex";
-import type { DbCacheEntry, dbCache } from "../interfaces";
+import type { DbCache, DbCacheEntry } from "../interfaces";
 
 /**
  * Creates and returns a new cache object for user database connections.
@@ -10,9 +10,9 @@ import type { DbCacheEntry, dbCache } from "../interfaces";
  * - A Mutex for concurrency control
  * - An evictionInterval reference for background cleanup
  *
- * @returns {dbCache} The newly created cache object
+ * @returns {DbCache} The newly created cache object
  */
-export const initUserDbCache = (): dbCache => {
+export const initUserDbCache = (): DbCache => {
   const cache = new Map<string, DbCacheEntry>();
   const mutex = new Mutex();
   let evictionInterval: ReturnType<typeof setInterval> | undefined;
@@ -29,14 +29,14 @@ export const initUserDbCache = (): dbCache => {
  * from the cache. A connection is considered stale if it hasn't been accessed
  * for longer than the configured TTL and has no active references.
  *
- * @param {dbCache} userDbCache - The cache to maintain
+ * @param {DbCache} userDbCache - The cache to maintain
  * @param {number} dbConnectionCacheTtl - Milliseconds after which
  *   inactive connections are evicted
  * @param {number} dbConnectionCacheEvictionInterval - Interval in
  *   milliseconds to run the eviction process
  */
 export const backgroundEvictExpiredDbs = (
-  userDbCache: dbCache,
+  userDbCache: DbCache,
   dbConnectionCacheTtl: number,
   dbConnectionCacheEvictionInterval: number,
 ) => {
@@ -69,10 +69,10 @@ Closing database.`,
  * Closes and removes all database connections from the cache.
  * Also stops the background cleanup process if it is currently active.
  *
- * @param {dbCache} userDbCache - The cache structure to clear
+ * @param {DbCache} userDbCache - The cache structure to clear
  * @returns {Promise<void>}
  */
-export const clearUserDbCache = async (userDbCache: dbCache): Promise<void> => {
+export const clearUserDbCache = async (userDbCache: DbCache): Promise<void> => {
   const release = await userDbCache.mutex.acquire();
   try {
     console.info(
