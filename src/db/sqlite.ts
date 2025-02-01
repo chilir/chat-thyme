@@ -139,6 +139,8 @@ Initializing new database object from ${dbPath}.`,
 };
 
 /**
+ * // TODO: consider moving this to `cache.ts` module
+ *
  * Decrements the reference count for a user's database connection.
  * This allows the connection to be cleaned up by the cache eviction process
  * when the reference count reaches 0.

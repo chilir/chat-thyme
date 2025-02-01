@@ -49,7 +49,7 @@ describe("In-Memory Database Cache", () => {
       );
       expect(userDbCache.evictionInterval).toBeDefined();
 
-      // Wait for TTL to expire
+      // wait for TTL
       await new Promise((resolve) => setTimeout(resolve, 150));
       expect(userDbCache.cache.size).toBe(0);
     });
@@ -59,29 +59,26 @@ describe("In-Memory Database Cache", () => {
         filePath: testFilePath,
         db: mockDb,
         lastAccessed: Date.now(),
-        refCount: 1, // Active reference
+        refCount: 1,
       });
       backgroundEvictExpiredDbs(
         userDbCache,
         testDbConnectionCacheTtl,
         testDbConnectionCacheEvictionInterval,
       );
-
-      // Wait for TTL to expire
       await new Promise((resolve) => setTimeout(resolve, 150));
       expect(userDbCache.cache.size).toBe(1);
     });
   });
 
   it("should clear all cache entries and stop maintenance", async () => {
-    // Add some test entries
-    const mockDb2 = new Database(":memory:");
     userDbCache.cache.set(testUserId, {
       filePath: testFilePath,
       db: mockDb,
       lastAccessed: Date.now(),
       refCount: 0,
     });
+    const mockDb2 = new Database(":memory:");
     userDbCache.cache.set(`${testUserId}-2`, {
       filePath: `${testFilePath}-2`,
       db: mockDb2,
@@ -93,7 +90,6 @@ describe("In-Memory Database Cache", () => {
       testDbConnectionCacheTtl,
       testDbConnectionCacheEvictionInterval,
     );
-
     await clearUserDbCache(userDbCache);
     expect(userDbCache.cache.size).toBe(0);
     expect(userDbCache.evictionInterval).toBeUndefined();
@@ -112,14 +108,8 @@ describe("In-Memory Database Cache", () => {
       const evictionInterval = userDbCache.evictionInterval;
       expect(evictionInterval).toBeDefined();
 
-      // Second call should not create new interval
+      // second call should not create new interval
       backgroundEvictExpiredDbs(userDbCache, testDbConnectionCacheTtl, 10);
-
-      await new Promise((resolve) => setTimeout(resolve, 30));
-      expect(userDbCache.evictionInterval).toBeDefined();
-
-      // Should maintain same interval, safe to compare since we checked both
-      // are defined
       expect(userDbCache.evictionInterval).toBe(evictionInterval as Timer);
     });
 
@@ -152,8 +142,6 @@ describe("In-Memory Database Cache", () => {
       const mockDbs = Array(5)
         .fill(null)
         .map(() => new Database(":memory:"));
-
-      // Setup initial cache entries
       mockDbs.forEach((db, i) => {
         userDbCache.cache.set(`${testUserId}-${i}`, {
           filePath: `${testFilePath}-${i}`,
@@ -162,14 +150,13 @@ describe("In-Memory Database Cache", () => {
           refCount: 0,
         });
       });
-
       backgroundEvictExpiredDbs(
         userDbCache,
         testDbConnectionCacheTtl,
         testDbConnectionCacheEvictionInterval,
       );
 
-      // Concurrent operations
+      // concurrent operations to clear cache
       promises.push(clearUserDbCache(userDbCache));
       promises.push(clearUserDbCache(userDbCache));
       await Promise.all(promises);

@@ -6,9 +6,9 @@ import type { DbCache, DbCacheEntry } from "../interfaces";
 /**
  * Creates and returns a new cache object for user database connections.
  * The cache includes:
- * - A Map to store active database connections
- * - A Mutex for concurrency control
- * - An evictionInterval reference for background cleanup
+ * - A `Map` to store active database connections
+ * - A `Mutex` for concurrency control
+ * - A reference for the background cleanup interval process
  *
  * @returns {DbCache} The newly created cache object
  */
@@ -27,11 +27,11 @@ export const initUserDbCache = (): DbCache => {
 /**
  * Launches a scheduled background task to remove stale database connections
  * from the cache. A connection is considered stale if it hasn't been accessed
- * for longer than the configured TTL and has no active references.
+ * for longer than the configured time-to-live AND has no active references.
  *
  * @param {DbCache} userDbCache - The cache to maintain
- * @param {number} dbConnectionCacheTtl - Milliseconds after which
- *   inactive connections are evicted
+ * @param {number} dbConnectionCacheTtl - Milliseconds after which inactive
+ *   connections are evicted
  * @param {number} dbConnectionCacheEvictionInterval - Interval in
  *   milliseconds to run the eviction process
  */
