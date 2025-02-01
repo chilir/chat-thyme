@@ -153,7 +153,7 @@ export const handleUserMessage = async (
   }
 
   messageQueueEntry.queue.push(discordMessage);
-  console.debug("----------\n");
+  console.debug("\n----------");
   console.debug(`Queued message in chat ${chatThreadInfo.chatId}:`);
   console.debug(discordMessage.content);
   console.debug(`Current queue size: ${messageQueueEntry.queue.length}`);

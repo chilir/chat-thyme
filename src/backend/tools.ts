@@ -81,7 +81,7 @@ const processExaSearchCall = async (
     return null;
   });
 
-  console.debug("----------\n");
+  console.debug("\n----------");
   console.debug("Exa search results:");
   console.debug(searchResults);
 

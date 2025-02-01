@@ -27,7 +27,7 @@ export const chatWithModel = async (
   })) as ChatResponse;
 
   if (response.error) {
-    console.debug("----------\n");
+    console.debug("\n----------");
     console.debug(response.error);
     console.debug(`Model response error code: ${response.error.code}`);
     console.debug(`Model response error message: ${response.error.message}`);

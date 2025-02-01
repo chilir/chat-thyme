@@ -191,10 +191,10 @@ export const processUserMessage = async (
       result.reasoningContent,
     );
 
-    console.debug("----------\n");
+    console.debug("\n----------");
     console.debug("Current chat messages:");
     console.debug(currentChatMessages);
-    console.debug("----------\n");
+    console.debug("\n----------");
     console.debug("Response from model:");
     console.debug(formattedContent);
 

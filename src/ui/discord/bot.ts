@@ -63,7 +63,7 @@ export const setupDiscordBot = (
   // Command interaction
   clients.discordClient.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
-    console.debug("----------\n");
+    console.debug("\n----------");
     console.debug(`Interaction received: ${interaction.commandName}`);
     console.debug(`User: ${interaction.user.tag}`);
     console.debug("Options:");
