@@ -56,7 +56,7 @@ describe("extractMessageContent", () => {
 describe("formatResponse", () => {
   it("should format response with reasoning", () => {
     const result = formatResponse("Hello", "Thinking process");
-    expect(result).toBe("<thinking>\nThinking process</thinking>\nHello");
+    expect(result).toBe("<thinking>Thinking process</thinking>\n\nHello");
   });
 
   it("should return only message when no reasoning provided", () => {

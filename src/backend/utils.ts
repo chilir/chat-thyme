@@ -121,7 +121,7 @@ export const formatResponse = (
   reasoningContent?: string | undefined,
 ): string => {
   return reasoningContent
-    ? `<thinking>\n${reasoningContent}</thinking>\n${msgContent}`
+    ? `<thinking>${reasoningContent}</thinking>\n\n${msgContent}`
     : msgContent;
 };
 
