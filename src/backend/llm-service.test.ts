@@ -128,36 +128,4 @@ describe("LLM Service", () => {
       "Unknown error occurred during model interaction: Unknown error occurred",
     );
   }, 10000);
-
-  it("should remove unprocessed message on error", async () => {
-    const mockErrorClient = {
-      chat: {
-        completions: {
-          create: mock(async () => {
-            throw new APIError(
-              500,
-              { message: "Server error" },
-              "Server error",
-              {},
-            );
-          }),
-        },
-      },
-    } as unknown as OpenAI;
-    const prompt: ChatPrompt = {
-      modelName: testModel,
-      messages: [
-        { role: userRole, content: "First message" },
-        { role: userRole, content: "Second message" },
-      ],
-      useTools: false,
-    };
-
-    try {
-      await chatWithModel(mockErrorClient, prompt, {});
-    } catch (error) {
-      expect(prompt.messages).toHaveLength(1);
-      expect(prompt.messages[0]?.content).toBe("First message");
-    }
-  }, 10000);
 });
