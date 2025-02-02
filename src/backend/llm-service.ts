@@ -2,30 +2,40 @@
 
 import { APIError, type OpenAI } from "openai";
 import pRetry from "p-retry";
-import type { ChatParameters, ChatPrompt, ChatResponse } from "../interfaces";
-import { CHAT_THYME_TOOLS } from "./tools";
+import type {
+  ChatPrompt,
+  ExpandedChatParameters,
+  ExpandedChatResponse,
+} from "../interfaces";
+import { CHAT_THYME_TOOLS } from "./constants";
 
 /**
  * Sends a chat request to the model and returns the response.
  * This function handles the direct interaction with the model server via
  * the OpenAI client, including retry logic and error handling.
  *
- * @param {OpenAI} modelClient - OpenAI client instance for making API calls
- * @param {ChatPrompt} prompt - The chat prompt containing model name, messages,
- *   and tool usage preferences
- * @param {Partial<ChatParameters>} options - Additional model parameters such
- *   as temperature, top_p, etc.
- * @returns {Promise<OpenAI.Chat.ChatCompletion>} The model's response
- * @throws {Error} With specific error messages:
+ * @param {OpenAI} modelClient - Authenticated OpenAI client
+ * @param {ChatPrompt} prompt - Chat prompt containing model name, messages, and
+ *   tool usage preferences
+ * @param {Partial<ExpandedChatParameters>} options - Additional model
+ *   parameters such as temperature, top_p, etc.
+ * @returns {Promise<OpenAI.Chat.ChatCompletion>} Model response
+ * @throws {Error} With varying error messages depending on error type:
  *   - Rate limit exceeded (429)
  *   - Original error message for other API errors
- *   - Unknown error occurred during model interaction
+ *   - Unknown errors
  */
 export const chatWithModel = async (
   modelClient: OpenAI,
   prompt: ChatPrompt,
-  options: Partial<ChatParameters>,
+  options: Partial<ExpandedChatParameters>,
 ): Promise<OpenAI.Chat.ChatCompletion> => {
+  console.debug("\n----------");
+  console.debug("Debug input:");
+  console.debug(prompt.messages);
+  console.debug(prompt.messages[0]?.content);
+  console.debug(options);
+
   try {
     const response = await pRetry(
       async () => {
@@ -34,9 +44,13 @@ export const chatWithModel = async (
           messages: prompt.messages,
           tools: prompt.useTools ? CHAT_THYME_TOOLS : undefined,
           ...options,
-        })) as ChatResponse;
+        })) as ExpandedChatResponse;
 
         if (chatResponse.error) {
+          console.debug("\n----------");
+          console.debug("Error as part of model response object:");
+          console.debug(chatResponse.error);
+
           throw new APIError(
             chatResponse.error.code,
             chatResponse.error,
@@ -51,19 +65,25 @@ export const chatWithModel = async (
         return chatResponse;
       },
       {
-        retries: 3,
+        retries: 5,
         factor: 2,
-        minTimeout: 1000,
-        maxTimeout: 15000,
+        minTimeout: 100,
+        maxTimeout: 60000,
         shouldRetry: (error) => {
+          if (error instanceof APIError) {
+            return (
+              error.status === 429 ||
+              (error.status >= 500 && error.status < 600)
+            );
+          }
+
+          console.debug("\n----------");
+          console.debug("Error that is not `APIError`:");
           console.debug(error);
-          return error instanceof APIError
-            ? error.status === 429 ||
-                (error.status >= 500 && error.status < 600)
-            : true;
+
+          return true; // retry unknown errors
         },
         onFailedAttempt: (error) => {
-          console.debug(error);
           console.debug(
             `Chat response attempt ${error.attemptNumber} failed. There are \
 ${error.retriesLeft} retries left...`,
@@ -83,6 +103,7 @@ ${error.retriesLeft} retries left...`,
     } else {
       errorMsg = error instanceof Error ? error.message : "Unknown error";
     }
+
     console.debug("\n----------");
     console.debug(error);
     console.debug(`Model response error code: ${errorCode}`);
@@ -93,9 +114,11 @@ ${error.retriesLeft} retries left...`,
     if (!errorCode) {
       throw new Error("Unknown error occurred during model interaction.");
     }
+
     const rethrowErrorMsg: string =
       errorCode === 429 ? "Rate limit exceeded" : errorMsg;
     prompt.messages.pop(); // remove the unprocessed message
+
     throw new Error(rethrowErrorMsg);
   }
 };

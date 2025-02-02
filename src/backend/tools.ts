@@ -6,59 +6,31 @@ import type Exa from "exa-js";
 import type OpenAI from "openai";
 import pRetry from "p-retry";
 import type {
-  ChatParameters,
-  DbChatMessage,
-  LLMChatMessage,
+  ExpandedChatCompletionMessage,
+  ExpandedChatParameters,
   ProcessedMessageContent,
 } from "../interfaces";
 import { chatWithModel } from "./llm-service";
 import {
   extractMessageContent,
   processOpenRouterContent,
-  saveChatMessagesToDb,
+  saveChatMessageToDb,
 } from "./utils";
-
-/**
- * Array of available tools that the LLM can use.
- * Currently includes only the Exa search function.
- */
-export const CHAT_THYME_TOOLS: OpenAI.ChatCompletionTool[] = [
-  {
-    type: "function",
-    function: {
-      name: "exa_search",
-      description:
-        "Perform a search query on the web with Exa, and retrieve the most relevant URLs/web data.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: {
-            type: "string",
-            description: "The search query to perform.",
-          },
-        },
-        required: ["query"],
-        additionalProperties: false,
-      },
-      strict: true,
-    },
-  },
-];
 
 /**
  * Processes an Exa search tool call and returns the search results.
  * Implements retry logic and error handling for the search operation.
  *
- * @param {OpenAI.ChatCompletionMessageToolCall} toolCall - The tool call from the LLM
- * @param {Exa} exaClient - The Exa client instance for performing web searches
- * @returns {Promise<OpenAI.ChatCompletionToolMessageParam>} Tool response message with search results
+ * @param {OpenAI.ChatCompletionMessageToolCall} toolCall - Model tool call
+ * @param {Exa} exaClient - Authenticated Exa client
+ * @returns {Promise<OpenAI.ChatCompletionToolMessageParam>} Tool response
+ *   message with search results to send to the model
  */
 const processExaSearchCall = async (
   toolCall: OpenAI.ChatCompletionMessageToolCall,
   exaClient: Exa,
 ): Promise<OpenAI.ChatCompletionToolMessageParam> => {
   const funcArgs = JSON.parse(toolCall.function.arguments);
-
   const searchResults = await pRetry(
     async () => {
       const result = await exaClient.searchAndContents(funcArgs.query, {
@@ -70,10 +42,15 @@ const processExaSearchCall = async (
       return result;
     },
     {
-      retries: 3,
+      retries: 5,
+      factor: 2,
+      minTimeout: 100,
+      maxTimeout: 60000,
+      // TODO: use `shouldRetry` to not retry on 402s (insufficient balance)
       onFailedAttempt: (error) => {
         console.warn(
-          `Search attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`,
+          `Search attempt ${error.attemptNumber} failed. ${error.retriesLeft} \
+retries left.`,
         );
       },
     },
@@ -112,19 +89,22 @@ const processExaSearchCall = async (
 };
 
 /**
- * Process a series of tool calls and generate a response based on their results.
- * This function handles executing tool calls, collecting their results, and generating
- * a final response using the model.
+ * Process a series of tool calls and generate a response based on their
+ * results.
+ * This function handles executing tool calls, collecting their results, and
+ * generating a final response using the model.
  *
- * @param {OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]} toolCalls - Array of tool calls to process
- * @param {Exa} exaClient - The Exa client for web searches
- * @param {OpenAI.Chat.Completions.ChatCompletionMessageParam[]} currentChatMessages - The current conversation history
- * @param {OpenAI} modelClient - The OpenAI client for model interactions
- * @param {string} model - Name of the model to use
- * @param {Partial<ChatParameters>} modelOptions - Model parameters
- * @param {Database} userDb - User's database instance
- * @param {string} userId - Unique identifier for the user
- * @param {string} chatId - Unique identifier for the chat session
+ * @param {OpenAI.ChatCompletionMessageToolCall[]} toolCalls - Tool calls to
+ *   process
+ * @param {Exa} exaClient - Authenticated Exa client
+ * @param {OpenAI.ChatCompletionMessageParam[]} currentChatMessages - Current
+ *   chat history
+ * @param {OpenAI} modelClient - Authenticated OpenAI client
+ * @param {string} model - Model name
+ * @param {Partial<ExpandedChatParameters>} modelOptions - Model parameters
+ * @param {Database} userDb - User DB connection
+ * @param {string} userId - Discord user ID
+ * @param {string} chatId - Chat session ID
  * @returns {Promise<ProcessedMessageContent>} The final processed response
  */
 export const processToolCalls = async (
@@ -133,64 +113,85 @@ export const processToolCalls = async (
   currentChatMessages: OpenAI.ChatCompletionMessageParam[],
   modelClient: OpenAI,
   model: string,
-  modelOptions: Partial<ChatParameters>,
+  modelOptions: Partial<ExpandedChatParameters>,
   userDb: Database,
   userId: string,
   chatId: string,
 ): Promise<ProcessedMessageContent> => {
-  const messagesToSave: DbChatMessage[] = [];
-
   console.debug("\n----------");
   console.debug("Tool calls:");
   console.debug(toolCalls);
+
   for (const toolCall of toolCalls) {
     if (toolCall.function.name === "exa_search") {
       const toolResponse = await processExaSearchCall(toolCall, exaClient);
       currentChatMessages.push(toolResponse);
-      messagesToSave.push({
-        role: "tool",
-        content: toolResponse.content,
-        timestamp: new Date(),
-        tool_call_id: toolResponse.tool_call_id,
-      });
+      await saveChatMessageToDb(
+        userDb,
+        userId,
+        chatId,
+        "tool",
+        toolResponse.content,
+        new Date(),
+        toolResponse.tool_call_id,
+      );
     } else {
       console.warn(`Unknown tool call: ${toolCall.function.name}`);
     }
   }
 
-  // Get model's response to the tool results
-  sleep(3000);
-  const response = await chatWithModel(
-    modelClient,
-    {
-      modelName: model,
-      messages: currentChatMessages.slice(-toolCalls.length),
-      useTools: false, // Prevent infinite tool call loops
-    },
-    modelOptions,
-  );
+  let responseToToolCallResults: OpenAI.ChatCompletion;
+  try {
+    responseToToolCallResults = await chatWithModel(
+      modelClient,
+      {
+        modelName: model,
+        messages: currentChatMessages.slice(-toolCalls.length),
+        useTools: false, // prevent infinite tool call loops
+      },
+      modelOptions,
+    );
+  } catch (error) {
+    // make sure record of error is saved to chat history + db before bubbling
+    // up error
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    currentChatMessages.push({
+      role: "assistant",
+      content: `Failed to process search results: ${errorMessage}`,
+    });
+    await saveChatMessageToDb(
+      userDb,
+      userId,
+      chatId,
+      "assistant",
+      `Failed to process search results: ${errorMessage}`,
+      new Date(),
+    );
+    throw error;
+  }
 
-  if (!response.choices.length) {
+  if (!responseToToolCallResults.choices.length) {
     console.warn(
       "Received empty choices array in model response for tool call results",
     );
     return {
+      timestamp: new Date(responseToToolCallResults.created * 1000),
       msgContent: "Failed to process search results",
       reasoningContent: undefined,
     };
   }
 
-  const firstChoice = response.choices[0] as OpenAI.ChatCompletion.Choice;
+  const firstChoice = responseToToolCallResults
+    .choices[0] as OpenAI.ChatCompletion.Choice;
   const { msgContent, reasoningContent } = extractMessageContent(
-    firstChoice.message as LLMChatMessage,
+    firstChoice.message as ExpandedChatCompletionMessage,
   );
-  const { msgContent: finalContent, reasoningContent: finalReasoning } =
-    processOpenRouterContent(msgContent, reasoningContent, response.choices);
 
-  await saveChatMessagesToDb(userDb, userId, chatId, messagesToSave);
-
-  return {
-    msgContent: finalContent,
-    reasoningContent: finalReasoning,
-  };
+  return processOpenRouterContent(
+    new Date(responseToToolCallResults.created * 1000),
+    msgContent,
+    reasoningContent,
+    responseToToolCallResults.choices.slice(1),
+  );
 };

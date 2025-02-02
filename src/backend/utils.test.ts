@@ -23,6 +23,9 @@ const userRole = "user";
 const assistantRole = "assistant";
 const toolRole = "tool";
 const tmpDirPrefix = "chat-thyme-test-backend-utils-";
+const toolContent: OpenAI.ChatCompletionContentPart[] = [
+  { type: "text", text: "Tool output" },
+];
 
 describe("Message Content Extraction", () => {
   it("should extract content and reasoning from message", () => {
@@ -182,9 +185,6 @@ describe("Database Message Operations", () => {
   });
 
   it("should save and parse a tool message with tool call ID", async () => {
-    const toolContent = [
-      { type: "text", text: "Tool output" },
-    ] as OpenAI.ChatCompletionContentPart[];
     await saveChatMessageToDb(
       db,
       "user123",
@@ -322,9 +322,6 @@ describe("Chat History Retrieval", () => {
   });
 
   it("should parse tool messages correctly", async () => {
-    const toolContent = [
-      { type: "text", text: "Tool output" },
-    ] as OpenAI.ChatCompletionContentPart[];
     const timestamp = new Date();
     db.run(
       "INSERT INTO chat_messages (chat_id, role, content, tool_call_id, timestamp) VALUES (?, ?, ?, ?, ?)",
