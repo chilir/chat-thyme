@@ -4,33 +4,42 @@ import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type OpenAI from "openai";
 import tmp from "tmp";
-import type { DbChatMessage, LLMChatMessage } from "../interfaces";
+import type {
+  DbChatMessageToSave,
+  ExpandedChatCompletionMessage,
+} from "../interfaces";
 import {
   extractMessageContent,
-  formatResponse,
+  formatModelResponse,
   getChatHistoryFromDb,
+  parseDbRow,
   processOpenRouterContent,
   saveChatMessageToDb,
-  saveChatMessagesToDb,
 } from "./utils";
 
-describe("extractMessageContent", () => {
+const systemRole = "system";
+const testSystemPrompt = "You are a helpful assistant.";
+const userRole = "user";
+const assistantRole = "assistant";
+const toolRole = "tool";
+const tmpDirPrefix = "chat-thyme-test-backend-utils-";
+
+describe("Message Content Extraction", () => {
   it("should extract content and reasoning from message", () => {
-    const message: LLMChatMessage = {
-      role: "assistant",
+    const message: ExpandedChatCompletionMessage = {
+      role: assistantRole,
       content: "Hello world",
       reasoning_content: "Thinking about greeting",
       refusal: null,
     };
-
     const result = extractMessageContent(message);
     expect(result.msgContent).toBe("Hello world");
     expect(result.reasoningContent).toBe("Thinking about greeting");
   });
 
   it("should handle refusal messages", () => {
-    const message: LLMChatMessage = {
-      role: "assistant",
+    const message: ExpandedChatCompletionMessage = {
+      role: assistantRole,
       content: "",
       refusal: "I cannot help with that",
     };
@@ -41,8 +50,8 @@ describe("extractMessageContent", () => {
   });
 
   it("should use reasoning field if reasoning_content is not present", () => {
-    const message: LLMChatMessage = {
-      role: "assistant",
+    const message: ExpandedChatCompletionMessage = {
+      role: assistantRole,
       content: "Hello",
       reasoning: "Simple greeting",
       refusal: null,
@@ -54,28 +63,45 @@ describe("extractMessageContent", () => {
   });
 });
 
-describe("formatResponse", () => {
+describe("Model Response Formatting", () => {
   it("should format response with reasoning", () => {
-    const result = formatResponse("Hello", "Thinking process");
+    const result = formatModelResponse("Hello", "Thinking process");
     expect(result).toBe("<thinking>Thinking process</thinking>\n\nHello");
   });
 
   it("should return only message when no reasoning provided", () => {
-    const result = formatResponse("Hello");
+    const result = formatModelResponse("Hello");
     expect(result).toBe("Hello");
   });
 });
 
-describe("processOpenRouterContent", () => {
+describe("OpenRouter Response Processing", () => {
+  const timestamp = new Date();
+
   it("should handle standard content with reasoning", () => {
     const result = processOpenRouterContent(
+      timestamp,
       "Hello world",
       "Thinking about greeting",
+      [],
+    );
+    expect(result).toEqual({
+      timestamp,
+      msgContent: "Hello world",
+      reasoningContent: "Thinking about greeting",
+    });
+  });
+
+  it("should handle OpenRouter style split content and reasoning", () => {
+    const result = processOpenRouterContent(
+      timestamp,
+      null,
+      "Thinking process",
       [
         {
           message: {
-            content: "Hello world",
-            role: "assistant",
+            content: "Final answer",
+            role: assistantRole,
             refusal: null,
           },
           index: 0,
@@ -84,43 +110,19 @@ describe("processOpenRouterContent", () => {
         },
       ],
     );
-    expect(result.msgContent).toBe("Hello world");
-    expect(result.reasoningContent).toBe("Thinking about greeting");
-  });
-
-  it("should handle OpenRouter style split content and reasoning", () => {
-    const result = processOpenRouterContent(null, "Thinking process", [
-      {
-        message: {
-          content: null,
-          role: "assistant",
-          refusal: null,
-        },
-        index: 0,
-        finish_reason: "stop",
-        logprobs: null,
-      },
-      {
-        message: {
-          content: "Final answer",
-          role: "assistant",
-          refusal: null,
-        },
-        index: 1,
-        finish_reason: "stop",
-        logprobs: null,
-      },
-    ]);
-    expect(result.msgContent).toBe("Final answer");
-    expect(result.reasoningContent).toBe("Thinking process");
+    expect(result).toEqual({
+      timestamp,
+      msgContent: "Final answer",
+      reasoningContent: "Thinking process",
+    });
   });
 
   it("should handle missing content with fallback", () => {
-    const result = processOpenRouterContent(null, "Some reasoning", [
+    const result = processOpenRouterContent(timestamp, null, "Some reasoning", [
       {
         message: {
           content: null,
-          role: "assistant",
+          role: assistantRole,
           refusal: null,
         },
         index: 0,
@@ -133,38 +135,33 @@ describe("processOpenRouterContent", () => {
   });
 });
 
-describe("database operations", () => {
+describe("Database Message Operations", () => {
   let db: Database;
-  let tmpDir: string;
-
-  let tmpObj: tmp.DirResult;
+  let tmpDir: tmp.DirResult;
+  const timestamp = new Date();
 
   beforeEach(() => {
-    tmpObj = tmp.dirSync({
-      prefix: "chat-thyme-test-backend-utils-",
+    tmpDir = tmp.dirSync({
+      prefix: tmpDirPrefix,
       unsafeCleanup: true,
     });
-    tmpDir = tmpObj.name;
-    db = new Database(`${tmpDir}/test.db`);
-
-    // Initialize test database schema
+    db = new Database(`${tmpDir.name}/test.db`);
     db.run(`CREATE TABLE IF NOT EXISTS chat_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       chat_id TEXT NOT NULL,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       tool_call_id TEXT,
-      timestamp TEXT NOT NULL
+      timestamp DATETIME NOT NULL
     )`);
   });
 
   afterEach(() => {
     db.close();
-    tmpObj.removeCallback();
+    tmpDir.removeCallback();
   });
 
-  it("should save single chat message to database", async () => {
-    const timestamp = new Date();
+  it("should save and parse a user chat message", async () => {
     await saveChatMessageToDb(
       db,
       "user123",
@@ -172,21 +169,19 @@ describe("database operations", () => {
       "user",
       "Hello",
       timestamp,
-      null,
     );
-
-    const result = db
-      .query("SELECT * FROM chat_messages WHERE chat_id = ?")
-      .get("chat456") as DbChatMessage;
-    expect(result).toBeDefined();
-    expect(result.content).toBe("Hello");
-    expect(result.role).toBe("user");
-    expect(result.timestamp).toBe(timestamp.toISOString());
-    expect(result.tool_call_id).toBeNull();
+    const result = parseDbRow(
+      db
+        .query("SELECT * FROM chat_messages WHERE chat_id = ?")
+        .get("chat456") as DbChatMessageToSave,
+    );
+    expect(result).toEqual({
+      role: userRole,
+      content: "Hello",
+    });
   });
 
-  it("should save tool message with tool_call_id", async () => {
-    const timestamp = new Date();
+  it("should save and parse a tool message with tool call ID", async () => {
     const toolContent = [
       { type: "text", text: "Tool output" },
     ] as OpenAI.ChatCompletionContentPart[];
@@ -199,44 +194,20 @@ describe("database operations", () => {
       timestamp,
       "call_123",
     );
-
-    const result = db
-      .query("SELECT * FROM chat_messages WHERE chat_id = ?")
-      .get("chat456") as DbChatMessage;
-    expect(result).toBeDefined();
-    expect(JSON.parse(result.content as string)).toEqual(toolContent);
-    expect(result.role).toBe("tool");
-    expect(result.tool_call_id).toBe("call_123");
-  });
-
-  it("should save multiple chat messages to database", async () => {
-    const messages: DbChatMessage[] = [
-      {
-        role: "user",
-        content: "Hello",
-        timestamp: new Date(),
-      },
-      {
-        role: "assistant",
-        content: "Hi there",
-        timestamp: new Date(),
-      },
-    ];
-
-    await saveChatMessagesToDb(db, "user123", "chat456", messages);
-
-    const results = db
-      .query("SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY timestamp")
-      .all("chat456") as DbChatMessage[];
-    expect(results.length).toBe(2);
-    expect(results[0]?.content).toBe("Hello");
-    expect(results[1]?.content).toBe("Hi there");
+    const result = parseDbRow(
+      db
+        .query("SELECT * FROM chat_messages WHERE chat_id = ?")
+        .get("chat456") as DbChatMessageToSave,
+    );
+    expect(result).toEqual({
+      role: toolRole,
+      content: toolContent,
+      tool_call_id: "call_123",
+    } as OpenAI.ChatCompletionToolMessageParam);
   });
 
   it("should handle database errors", async () => {
-    // Drop the table to simulate a database error
     db.run("DROP TABLE chat_messages");
-
     expect(
       saveChatMessageToDb(
         db,
@@ -250,11 +221,8 @@ describe("database operations", () => {
     ).rejects.toThrow();
   });
 
-  it("should handle malformed data", async () => {
-    const timestamp = new Date();
-    // Test with very long content
+  it("should be able to handle very long content data", async () => {
     const longContent = "a".repeat(10000);
-
     await saveChatMessageToDb(
       db,
       "user123",
@@ -264,7 +232,6 @@ describe("database operations", () => {
       timestamp,
       null,
     );
-
     const result = db
       .query("SELECT * FROM chat_messages WHERE chat_id = ?")
       .get("chat456") as { content: string };
@@ -272,17 +239,16 @@ describe("database operations", () => {
   });
 });
 
-describe("getChatHistoryFromDb", () => {
+describe("Chat History Retrieval", () => {
   let db: Database;
-  let tmpDir: string;
+  let tmpDir: tmp.DirResult;
 
   beforeEach(() => {
     tmpDir = tmp.dirSync({
-      prefix: "chat-thyme-test-",
+      prefix: tmpDirPrefix,
       unsafeCleanup: true,
-    }).name;
-    db = new Database(`${tmpDir}/test.db`);
-
+    });
+    db = new Database(`${tmpDir.name}/test.db`);
     db.run(`CREATE TABLE IF NOT EXISTS chat_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       chat_id TEXT NOT NULL,
@@ -295,71 +261,62 @@ describe("getChatHistoryFromDb", () => {
 
   afterEach(() => {
     db.close();
-    Bun.write(tmpDir, ""); // Clear tmp directory
+    tmpDir.removeCallback();
   });
 
   it("should retrieve chat history and prepend system prompt", async () => {
-    // Insert test messages
     const messages = [
       {
         chat_id: "test-chat",
-        role: "user",
+        role: userRole,
         content: "Hello",
         timestamp: new Date().toISOString(),
       },
       {
         chat_id: "test-chat",
-        role: "assistant",
+        role: assistantRole,
         content: "Hi there",
         timestamp: new Date().toISOString(),
       },
     ];
-
     for (const msg of messages) {
       db.run(
         "INSERT INTO chat_messages (chat_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
         [msg.chat_id, msg.role, msg.content, msg.timestamp],
       );
     }
-
-    const systemPrompt = "You are a helpful assistant.";
     const history = await getChatHistoryFromDb(
       db,
       "user123",
       "test-chat",
-      systemPrompt,
+      testSystemPrompt,
     );
-
     expect(history.length).toBe(3); // 2 messages + system prompt
     expect(history[0]).toEqual({
-      role: "system",
-      content: systemPrompt,
+      role: systemRole,
+      content: testSystemPrompt,
     });
     expect(history[1]?.content).toBe("Hello");
     expect(history[2]?.content).toBe("Hi there");
   });
 
   it("should handle empty chat history", async () => {
-    const systemPrompt = "You are a helpful assistant.";
     const history = await getChatHistoryFromDb(
       db,
       "user123",
       "nonexistent-chat",
-      systemPrompt,
+      testSystemPrompt,
     );
-
     expect(history.length).toBe(1);
     expect(history[0]).toEqual({
-      role: "system",
-      content: systemPrompt,
+      role: systemRole,
+      content: testSystemPrompt,
     });
   });
 
   it("should handle database errors", async () => {
-    // Drop the table to simulate a database error
     db.run("DROP TABLE chat_messages");
-
-    await expect(
+    expect(
       getChatHistoryFromDb(db, "user123", "test-chat", "system prompt"),
     ).rejects.toThrow();
   });
@@ -368,26 +325,73 @@ describe("getChatHistoryFromDb", () => {
     const toolContent = [
       { type: "text", text: "Tool output" },
     ] as OpenAI.ChatCompletionContentPart[];
-    const timestamp = new Date().toISOString();
-
+    const timestamp = new Date();
     db.run(
       "INSERT INTO chat_messages (chat_id, role, content, tool_call_id, timestamp) VALUES (?, ?, ?, ?, ?)",
-      ["test-chat", "tool", JSON.stringify(toolContent), "call_123", timestamp],
+      [
+        "test-chat",
+        "tool",
+        JSON.stringify(toolContent),
+        "call_123",
+        timestamp.toISOString(),
+      ],
     );
-
-    const systemPrompt = "You are a helpful assistant.";
     const history = await getChatHistoryFromDb(
       db,
       "user123",
       "test-chat",
-      systemPrompt,
+      testSystemPrompt,
     );
-
     expect(history.length).toBe(2); // system prompt + tool message
     expect(history[1]).toEqual({
-      role: "tool",
+      role: toolRole,
       content: toolContent,
       tool_call_id: "call_123",
-    });
+    } as OpenAI.ChatCompletionToolMessageParam);
+  });
+
+  it("should retrieve chat history with tool messages in correct order", async () => {
+    const timestamp = new Date();
+    const messages = [
+      {
+        chat_id: "test-chat",
+        role: userRole,
+        content: "Use tool",
+        timestamp: new Date(timestamp.getTime() - 2000).toISOString(),
+      },
+      {
+        chat_id: "test-chat",
+        role: toolRole,
+        content: JSON.stringify([{ type: "text", text: "Tool result" }]),
+        tool_call_id: "call_123",
+        timestamp: new Date(timestamp.getTime() - 1000).toISOString(),
+      },
+    ];
+    for (const msg of messages) {
+      db.run(
+        "INSERT INTO chat_messages (chat_id, role, content, tool_call_id, timestamp) VALUES (?, ?, ?, ?, ?)",
+        [
+          msg.chat_id,
+          msg.role,
+          msg.content,
+          msg.tool_call_id || null,
+          msg.timestamp,
+        ],
+      );
+    }
+    const history = await getChatHistoryFromDb(
+      db,
+      "user123",
+      "test-chat",
+      testSystemPrompt,
+    );
+
+    expect(history).toHaveLength(3); // system + 2 messages
+    expect(history[0]).toEqual({ role: systemRole, content: testSystemPrompt });
+    expect(history[1]?.role).toBe("user");
+    expect(history[2]?.role).toBe("tool");
+    expect(
+      (history[2] as OpenAI.ChatCompletionToolMessageParam).tool_call_id,
+    ).toBe("call_123");
   });
 });
