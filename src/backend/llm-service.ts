@@ -39,12 +39,24 @@ export const chatWithModel = async (
   try {
     const response = await pRetry(
       async () => {
-        const chatResponse = (await modelClient.chat.completions.create({
-          model: prompt.modelName,
-          messages: prompt.messages,
-          tools: prompt.useTools ? CHAT_THYME_TOOLS : undefined,
-          ...options,
-        })) as ExpandedChatResponse;
+        const chatBody = prompt.useTools
+          ? {
+              model: prompt.modelName,
+              messages: prompt.messages,
+              tools: CHAT_THYME_TOOLS,
+              ...options,
+            }
+          : {
+              model: prompt.modelName,
+              messages: prompt.messages,
+              ...options,
+            };
+        console.debug("\n----------");
+        console.debug("Debug body:");
+        console.debug(chatBody);
+        const chatResponse = (await modelClient.chat.completions.create(
+          chatBody,
+        )) as ExpandedChatResponse;
 
         if (chatResponse.error) {
           console.debug("\n----------");
@@ -119,7 +131,7 @@ ${error.retriesLeft} retries left...`,
 
     const rethrowErrorMsg: string =
       errorCode === 429 ? "Rate limit exceeded" : errorMsg;
-    prompt.messages.pop(); // remove the unprocessed message
+    // prompt.messages.pop(); // remove the unprocessed message
 
     throw new Error(rethrowErrorMsg);
   }

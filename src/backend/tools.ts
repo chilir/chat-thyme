@@ -146,7 +146,7 @@ export const processToolCalls = async (
       modelClient,
       {
         modelName: model,
-        messages: currentChatMessages.slice(-toolCalls.length),
+        messages: currentChatMessages,
         useTools: false, // prevent infinite tool call loops
       },
       modelOptions,

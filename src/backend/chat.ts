@@ -84,6 +84,9 @@ export const extractChoiceContent = async (
       };
     }
 
+    // TODO: migrate db schema to save tool calls to their own col
+    currentChatMessages.push(firstChoice.message);
+
     return await processToolCalls(
       firstChoice.message.tool_calls,
       exaClient,
