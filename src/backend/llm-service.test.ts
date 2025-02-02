@@ -124,7 +124,9 @@ describe("LLM Service", () => {
     } as unknown as OpenAI;
     expect(
       chatWithModel(mockErrorClient, testNoToolsChatPrompt, {}),
-    ).rejects.toThrow("Unknown error occurred during model interaction.");
+    ).rejects.toThrow(
+      "Unknown error occurred during model interaction: Unknown error occurred",
+    );
   }, 10000);
 
   it("should remove unprocessed message on error", async () => {

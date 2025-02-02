@@ -56,10 +56,10 @@ database. Raw JSON string: ${row.content}:`,
  * Retrieves chat history for a specific user and chat session from the database
  * and prepends the system prompt.
  *
- * @param userDb - User DB connection
- * @param userId - Discord user ID
- * @param chatId - Chat session ID
- * @param systemPrompt - System prompt to prepend to the chat history
+ * @param {Database} userDb - User DB connection
+ * @param {string} userId - Discord user ID
+ * @param {string} chatId - Chat session ID
+ * @param {string} systemPrompt - System prompt to prepend to the chat history
  * @returns {Promise<OpenAI.ChatCompletionMessageParam[]>} Array of past
  *   messages in chat session
  * @throws If database query fails

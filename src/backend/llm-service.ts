@@ -101,7 +101,7 @@ ${error.retriesLeft} retries left...`,
       errorCode = error.status;
       errorMetadata = error.headers;
     } else {
-      errorMsg = error instanceof Error ? error.message : "Unknown error";
+      errorMsg = error instanceof Error ? error.message : `${error}`;
     }
 
     console.debug("\n----------");
@@ -112,7 +112,9 @@ ${error.retriesLeft} retries left...`,
     console.debug(errorMetadata);
 
     if (!errorCode) {
-      throw new Error("Unknown error occurred during model interaction.");
+      throw new Error(
+        `Unknown error occurred during model interaction: ${errorMsg}`,
+      );
     }
 
     const rethrowErrorMsg: string =

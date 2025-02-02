@@ -154,8 +154,7 @@ export const processToolCalls = async (
   } catch (error) {
     // make sure record of error is saved to chat history + db before bubbling
     // up error
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
+    const errorMessage = error instanceof Error ? error.message : `${error}`;
     currentChatMessages.push({
       role: "assistant",
       content: `Failed to process search results: ${errorMessage}`,
