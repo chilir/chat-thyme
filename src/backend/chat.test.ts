@@ -1,3 +1,5 @@
+// src/backend/chat.test.ts
+
 import { Database } from "bun:sqlite";
 import {
   afterEach,

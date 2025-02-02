@@ -229,7 +229,8 @@ export const processUserMessage = async (
     );
   } catch (error) {
     console.error(
-      `Error processing user message for ${chatThreadInfo.userId} in chat ${chatThreadInfo.chatId}:`,
+      `Error processing user message for ${chatThreadInfo.userId} in chat \
+${chatThreadInfo.chatId}:`,
       error,
     );
     throw error;
