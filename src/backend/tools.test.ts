@@ -23,8 +23,10 @@ describe("Tool Definitions and Schema", () => {
       CHAT_THYME_TOOLS[0] as OpenAI.Chat.Completions.ChatCompletionTool;
     expect(searchTool.type).toBe("function");
     expect(searchTool.function.name).toBe("exa_search");
-    expect(searchTool.function.parameters?.required).toContain("query");
-    expect(searchTool.function.parameters?.properties).toHaveProperty("query");
+    // @ts-ignore
+    expect(searchTool.function.parameters.required).toContain("query");
+    // @ts-ignore
+    expect(searchTool.function.parameters.properties).toHaveProperty("query");
   });
 });
 

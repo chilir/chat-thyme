@@ -254,10 +254,14 @@ describe("Chat System Integration", () => {
         )
         .all("test-chat") as DbChatMessageToSave[];
       expect(messages).toHaveLength(2); // user message + assistant response
-      expect(messages[0]?.role).toBe("user");
-      expect(messages[0]?.content).toBe("Hello");
-      expect(messages[1]?.role).toBe("assistant");
-      expect(messages[1]?.content).toContain("Test response");
+      // @ts-ignore
+      expect(messages[0].role).toBe("user");
+      // @ts-ignore
+      expect(messages[0].content).toBe("Hello");
+      // @ts-ignore
+      expect(messages[1].role).toBe("assistant");
+      // @ts-ignore
+      expect(messages[1].content).toContain("Test response");
     });
   });
 });

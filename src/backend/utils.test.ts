@@ -387,8 +387,10 @@ describe("Chat History Retrieval", () => {
 
     expect(history).toHaveLength(3); // system + 2 messages
     expect(history[0]).toEqual({ role: systemRole, content: testSystemPrompt });
-    expect(history[1]?.role).toBe("user");
-    expect(history[2]?.role).toBe("tool");
+    // @ts-ignore
+    expect(history[1].role).toBe("user");
+    // @ts-ignore
+    expect(history[2].role).toBe("tool");
     expect(
       (history[2] as OpenAI.ChatCompletionToolMessageParam).tool_call_id,
     ).toBe("call_123");

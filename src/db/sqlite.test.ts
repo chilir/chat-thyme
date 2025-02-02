@@ -156,7 +156,8 @@ describe("SQLite Database Operations", () => {
       }
 
       // ref count should match concurrent access count + initial count
-      expect(userDbCache.cache.get(userId)?.refCount).toBe(
+      // @ts-ignore
+      expect(userDbCache.cache.get(userId).refCount).toBe(
         concurrentAccesses + 1,
       );
     });
