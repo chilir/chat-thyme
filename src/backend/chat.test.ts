@@ -13,17 +13,22 @@ import type { OpenAI } from "openai";
 import tmp from "tmp";
 import { clearUserDbCache, initUserDbCache } from "../db";
 import * as SqliteModule from "../db/sqlite";
-import type { ChatThreadInfo, DbCache } from "../interfaces";
+import type {
+  ChatThreadInfo,
+  DbCache,
+  DbChatMessageToSave,
+} from "../interfaces";
 import { extractChoiceContent, processUserMessage } from "./chat";
 import * as LlmService from "./llm-service";
 
 tmp.setGracefulCleanup();
 
-describe("chat module", () => {
+describe("Chat System Integration", () => {
   let db: Database;
   let tmpDir: tmp.DirResult;
   let mockModelClient: OpenAI;
   let mockExaClient: Exa;
+  const mockTimestamp = new Date("2024-01-01T00:00:00Z");
 
   beforeEach(() => {
     tmpDir = tmp.dirSync({
@@ -31,16 +36,15 @@ describe("chat module", () => {
       unsafeCleanup: true,
       keep: false,
     });
-
     db = new Database(`${tmpDir.name}/chat-test-${Date.now()}.db`);
     db.run(`CREATE TABLE IF NOT EXISTS chat_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       chat_id TEXT NOT NULL,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
-      timestamp TEXT NOT NULL
+      tool_call_id TEXT,
+      timestamp DATETIME NOT NULL
     )`);
-
     mockModelClient = {} as OpenAI;
     mockExaClient = {
       searchAndContents: mock(() =>
@@ -49,7 +53,6 @@ describe("chat module", () => {
         }),
       ),
     } as unknown as Exa;
-
     spyOn(LlmService, "chatWithModel").mockImplementation(() =>
       Promise.resolve({
         choices: [
@@ -65,13 +68,12 @@ describe("chat module", () => {
             logprobs: null,
           },
         ],
-        created: Date.now() / 1000,
+        created: mockTimestamp.getTime() / 1000,
         id: "mock-id",
         model: "gpt-4",
         object: "chat.completion",
       }),
     );
-
     spyOn(SqliteModule, "getOrInitUserDb").mockImplementation(() =>
       Promise.resolve(db),
     );
@@ -86,10 +88,11 @@ describe("chat module", () => {
     tmpDir.removeCallback();
   });
 
-  describe("extractChoiceContent", () => {
-    it("should handle empty choices array", async () => {
+  describe("Model Response Processing", () => {
+    it("should handle empty response from model", async () => {
       const result = await extractChoiceContent(
         [],
+        mockTimestamp,
         [],
         mockExaClient,
         mockModelClient,
@@ -99,25 +102,24 @@ describe("chat module", () => {
         "user123",
         "chat456",
       );
-
-      expect(result.msgContent).toBe("No response was generated");
-      expect(result.reasoningContent).toBeUndefined();
+      expect(result).toEqual({
+        timestamp: mockTimestamp,
+        msgContent: "No response was generated",
+        reasoningContent: undefined,
+      });
     });
 
-    it("should handle content filter", async () => {
+    it("should handle content filtered by model safety system", async () => {
       const result = await extractChoiceContent(
         [
           {
-            message: {
-              role: "assistant",
-              content: null,
-              refusal: null,
-            },
+            message: { role: "assistant", content: null, refusal: null },
             finish_reason: "content_filter",
             index: 0,
             logprobs: null,
           },
         ],
+        mockTimestamp,
         [],
         mockExaClient,
         mockModelClient,
@@ -127,12 +129,14 @@ describe("chat module", () => {
         "user123",
         "chat456",
       );
-
-      expect(result.msgContent).toBe("Content was filtered");
-      expect(result.reasoningContent).toBeUndefined();
+      expect(result).toEqual({
+        timestamp: mockTimestamp,
+        msgContent: "Content was filtered",
+        reasoningContent: undefined,
+      });
     });
 
-    it("should handle tool calls without Exa client", async () => {
+    it("should handle tool calls when tools are unavailable", async () => {
       const result = await extractChoiceContent(
         [
           {
@@ -142,11 +146,8 @@ describe("chat module", () => {
               tool_calls: [
                 {
                   type: "function",
-                  function: {
-                    name: "test",
-                    arguments: "",
-                  },
-                  id: "",
+                  function: { name: "test", arguments: "" },
+                  id: "test-call",
                 },
               ],
               refusal: null,
@@ -156,6 +157,7 @@ describe("chat module", () => {
             logprobs: null,
           },
         ],
+        mockTimestamp,
         [],
         undefined,
         mockModelClient,
@@ -165,14 +167,15 @@ describe("chat module", () => {
         "user123",
         "chat456",
       );
-
-      expect(result.msgContent).toBe(
-        "Tool calls requested but no tool clients available",
-      );
+      expect(result).toEqual({
+        timestamp: mockTimestamp,
+        msgContent: "Tool calls requested but no tool clients available",
+        reasoningContent: undefined,
+      });
     });
   });
 
-  describe("processUserMessage", () => {
+  describe("End-to-End Message Processing", () => {
     let mockDbCache: DbCache;
     const chatThreadInfo: ChatThreadInfo = {
       chatId: "test-chat",
@@ -188,7 +191,7 @@ describe("chat module", () => {
       clearUserDbCache(mockDbCache);
     });
 
-    it("should process user message and return formatted response", async () => {
+    it("should process message and return formatted response with reasoning", async () => {
       const response = await processUserMessage(
         chatThreadInfo,
         mockDbCache,
@@ -196,22 +199,22 @@ describe("chat module", () => {
         1,
         "You are a helpful assistant",
         "Hello",
-        new Date(),
+        mockTimestamp,
         mockModelClient,
         "test-model",
         false,
         undefined,
       );
-
-      expect(response).toContain("Test response");
+      expect(response).toBe(
+        "<thinking>Test reasoning</thinking>\n\nTest response",
+      );
       expect(LlmService.chatWithModel).toHaveBeenCalled();
     });
 
-    it("should handle errors during message processing", async () => {
+    it("should handle model errors gracefully", async () => {
       spyOn(LlmService, "chatWithModel").mockImplementation(() => {
         throw new Error("Model error");
       });
-
       expect(
         processUserMessage(
           chatThreadInfo,
@@ -220,7 +223,7 @@ describe("chat module", () => {
           1,
           "You are a helpful assistant",
           "Hello",
-          new Date(),
+          mockTimestamp,
           mockModelClient,
           "test-model",
           false,
@@ -229,7 +232,7 @@ describe("chat module", () => {
       ).rejects.toThrow("Model error");
     });
 
-    it("should save messages to database", async () => {
+    it("should save conversation history to database", async () => {
       await processUserMessage(
         chatThreadInfo,
         mockDbCache,
@@ -237,17 +240,22 @@ describe("chat module", () => {
         1,
         "You are a helpful assistant",
         "Hello",
-        new Date(),
+        mockTimestamp,
         mockModelClient,
         "test-model",
         false,
         undefined,
       );
-
       const messages = db
-        .query("SELECT * FROM chat_messages WHERE chat_id = ?")
-        .all("test-chat");
-      expect(messages.length).toBeGreaterThan(0);
+        .query(
+          "SELECT * FROM chat_messages WHERE chat_id = ? ORDER BY timestamp",
+        )
+        .all("test-chat") as DbChatMessageToSave[];
+      expect(messages).toHaveLength(2); // user message + assistant response
+      expect(messages[0]?.role).toBe("user");
+      expect(messages[0]?.content).toBe("Hello");
+      expect(messages[1]?.role).toBe("assistant");
+      expect(messages[1]?.content).toContain("Test response");
     });
   });
 });

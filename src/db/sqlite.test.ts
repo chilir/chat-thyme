@@ -7,7 +7,6 @@ import type { DbCache, DbCacheEntry } from "../interfaces";
 import { clearUserDbCache, initUserDbCache } from "./cache";
 import { getOrInitUserDb, releaseUserDb } from "./sqlite";
 
-// Ensure tmp cleanup
 tmp.setGracefulCleanup();
 
 let userDbCache: DbCache;

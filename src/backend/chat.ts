@@ -5,16 +5,16 @@ import type Exa from "exa-js";
 import type OpenAI from "openai";
 import { getOrInitUserDb, releaseUserDb } from "../db/sqlite";
 import type {
-  ChatParameters,
   ChatThreadInfo,
   DbCache,
+  ExpandedChatParameters,
   ProcessedMessageContent,
 } from "../interfaces";
 import { chatWithModel } from "./llm-service";
 import { processToolCalls } from "./tools";
 import {
   extractMessageContent,
-  formatResponse,
+  formatModelResponse,
   getChatHistoryFromDb,
   processOpenRouterContent,
   saveChatMessageToDb,
@@ -25,24 +25,28 @@ import {
  * Handles different types of responses including content filtering, tool calls,
  * and OpenRouter style responses.
  *
- * @param {OpenAI.Chat.Completions.ChatCompletion.Choice[]} choices - Array of response choices from the model
- * @param {OpenAI.Chat.Completions.ChatCompletionMessageParam[]} currentChatMessages - Current conversation history
- * @param {Exa | undefined} exaClient - Optional Exa client for web searches
- * @param {OpenAI} modelClient - OpenAI client instance
- * @param {string} model - Name of the model being used
- * @param {Partial<ChatParameters>} modelOptions - Model configuration parameters
- * @param {Database} userDb - User's database instance
- * @param {string} userId - Unique identifier for the user
- * @param {string} chatId - Unique identifier for the chat session
- * @returns {Promise<ProcessedMessageContent>} Processed content from the model response
+ * @param {OpenAI.ChatCompletion.Choice[]} choices - Choices from chat
+ *   completion
+ * @param {OpenAI.ChatCompletionMessageParam[]} currentChatMessages - Current
+ *   chat history
+ * @param {Exa | undefined} exaClient - Optional authenticated Exa client for
+ *   web searches
+ * @param {OpenAI} modelClient - Authenticated OpenAI client
+ * @param {string} model - Model name
+ * @param {Partial<ExpandedChatParameters>} modelOptions - Model parameters
+ * @param {Database} userDb - User DB connection
+ * @param {string} userId - Discord user ID
+ * @param {string} chatId - Chat session ID
+ * @returns {Promise<ProcessedMessageContent>} The final processed response
  */
 export const extractChoiceContent = async (
-  choices: OpenAI.Chat.Completions.ChatCompletion.Choice[],
-  currentChatMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  choices: OpenAI.ChatCompletion.Choice[],
+  timestamp: Date,
+  currentChatMessages: OpenAI.ChatCompletionMessageParam[],
   exaClient: Exa | undefined,
   modelClient: OpenAI,
   model: string,
-  modelOptions: Partial<ChatParameters>,
+  modelOptions: Partial<ExpandedChatParameters>,
   userDb: Database,
   userId: string,
   chatId: string,
@@ -50,17 +54,18 @@ export const extractChoiceContent = async (
   if (!choices.length) {
     console.warn("Received empty choices array in model response");
     return {
+      timestamp: timestamp,
       msgContent: "No response was generated",
       reasoningContent: undefined,
     };
   }
 
-  const firstChoice =
-    choices[0] as OpenAI.Chat.Completions.ChatCompletion.Choice;
+  const firstChoice = choices[0] as OpenAI.ChatCompletion.Choice;
 
   // Handle content filter
   if (firstChoice.finish_reason === "content_filter") {
     return {
+      timestamp: timestamp,
       msgContent: "Content was filtered",
       reasoningContent: undefined,
     };
@@ -73,6 +78,7 @@ export const extractChoiceContent = async (
   ) {
     if (!exaClient) {
       return {
+        timestamp: timestamp,
         msgContent: "Tool calls requested but no tool clients available",
         reasoningContent: undefined,
       };
@@ -95,8 +101,12 @@ export const extractChoiceContent = async (
   const { msgContent, reasoningContent } = extractMessageContent(
     firstChoice.message,
   );
-
-  return processOpenRouterContent(msgContent, reasoningContent, choices);
+  return processOpenRouterContent(
+    timestamp,
+    msgContent,
+    reasoningContent,
+    choices.slice(1),
+  );
 };
 
 /**
@@ -110,16 +120,18 @@ export const extractChoiceContent = async (
  *
  * @param {ChatThreadInfo} chatThreadInfo - Information about the chat thread
  * @param {DbCache} userDbCache - Database connection cache
- * @param {string} dbDir - Directory path for database files
- * @param {number} dbConnectionCacheSize - Maximum number of cached database connections
+ * @param {string} dbDir - Directory path where database files are stored
+ * @param {number} dbConnectionCacheSize - Desired maximum number of database
+ *   connections to keep in cache
  * @param {string} systemPrompt - System prompt to prepend to chat history
- * @param {string} discordMessageContent - The user's message content
- * @param {Date} discordMessageTimestamp - Timestamp of the user's message
- * @param {OpenAI} modelClient - OpenAI client instance
- * @param {string} model - Name of the model to use
+ * @param {string} discordMessageContent - User message content
+ * @param {Date} discordMessageTimestamp - User message timestamp
+ * @param {OpenAI} modelClient - Authenticated OpenAI client
+ * @param {string} model - Model name
  * @param {boolean} useTools - Whether to allow the model to use tools
- * @param {Exa | undefined} exaClient - Optional Exa client for web searches
- * @returns {Promise<string>} Formatted response message
+ * @param {Exa | undefined} exaClient - Optional authenticated Exa client for
+ *   web searches
+ * @returns {Promise<string>} The final processed response
  * @throws Will throw an error if message processing fails
  */
 export const processUserMessage = async (
@@ -143,8 +155,7 @@ export const processUserMessage = async (
   );
 
   let response: OpenAI.Chat.ChatCompletion;
-  const responseContent = "";
-  let formattedContent: string;
+  let formattedModelResponse: string;
   try {
     // TODO: need to put a cache layer in front of this at some point
     const currentChatMessages = await getChatHistoryFromDb(
@@ -154,15 +165,11 @@ export const processUserMessage = async (
       systemPrompt,
     );
 
+    console.debug("\n----------");
+    console.debug("Current chat messages from DB:");
+    console.debug(currentChatMessages);
+
     currentChatMessages.push({ role: "user", content: discordMessageContent });
-    await saveChatMessageToDb(
-      userDb,
-      chatThreadInfo.userId,
-      chatThreadInfo.chatId,
-      "user",
-      discordMessageContent,
-      discordMessageTimestamp,
-    );
 
     response = await chatWithModel(
       modelClient,
@@ -174,8 +181,9 @@ export const processUserMessage = async (
       chatThreadInfo.modelOptions,
     );
 
-    const result = await extractChoiceContent(
+    const extractedChoiceContent = await extractChoiceContent(
       response.choices,
+      new Date(response.created * 1000),
       currentChatMessages,
       exaClient,
       modelClient,
@@ -186,9 +194,9 @@ export const processUserMessage = async (
       chatThreadInfo.chatId,
     );
 
-    formattedContent = formatResponse(
-      result.msgContent as string,
-      result.reasoningContent,
+    formattedModelResponse = formatModelResponse(
+      extractedChoiceContent.msgContent as string,
+      extractedChoiceContent.reasoningContent,
     );
 
     console.debug("\n----------");
@@ -196,19 +204,28 @@ export const processUserMessage = async (
     console.debug(currentChatMessages);
     console.debug("\n----------");
     console.debug("Response from model:");
-    console.debug(formattedContent);
+    console.debug(formattedModelResponse);
 
     currentChatMessages.push({
       role: "assistant",
-      content: formattedContent,
+      content: formattedModelResponse,
     });
     await saveChatMessageToDb(
       userDb,
       chatThreadInfo.userId,
       chatThreadInfo.chatId,
+      "user",
+      discordMessageContent,
+      discordMessageTimestamp,
+    );
+    await saveChatMessageToDb(
+      userDb,
+      chatThreadInfo.userId,
+      chatThreadInfo.chatId,
       "assistant",
-      formattedContent, // Save the formatted content with reasoning included
-      new Date(response.created * 1000),
+      formattedModelResponse,
+      extractedChoiceContent.timestamp,
+      null,
     );
   } catch (error) {
     console.error(
@@ -220,5 +237,5 @@ export const processUserMessage = async (
     await releaseUserDb(chatThreadInfo.userId, userDbCache);
   }
 
-  return formattedContent;
+  return formattedModelResponse;
 };

@@ -17,6 +17,8 @@ import {
   saveChatMessageToDb,
 } from "./utils";
 
+tmp.setGracefulCleanup();
+
 const systemRole = "system";
 const testSystemPrompt = "You are a helpful assistant.";
 const userRole = "user";
