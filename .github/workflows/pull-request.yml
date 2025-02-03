@@ -6,13 +6,15 @@ on:
 jobs:
   unit-test:
     name: Unit tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+        uses: nixbuild/nix-quick-install-action@master
       - name: Enter nix shell and run bun tests
         run: |
+          nix flake check
+          nix flake metadata
           nix develop
           which bun
           bun --version
@@ -20,10 +22,10 @@ jobs:
           bun --env-file=.env.test test
   build:
     name: Build
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+        uses: nixbuild/nix-quick-install-action@main
       - name: Run `nix build`
         run: nix build
