@@ -18,7 +18,7 @@ jobs:
             bun install --no-progress --frozen-lockfile
             bun --env-file=.env.test test
           '
-      - run: Nix build
+      - run: nix build
       - name: Check built chat-thyme app help menu
         run: result/bin/app --help
 
