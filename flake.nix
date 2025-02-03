@@ -27,12 +27,12 @@
           # Pinned packages available in the environment
           packages = with pkgs; [
             bun
-            curl
-            git
-            jq
-            wget
-            nixpkgs-fmt
-            sqlite
+            # curl
+            # git
+            # jq
+            # wget
+            # nixpkgs-fmt
+            # sqlite
           ];
 
           # A hook run every time you enter the environment
@@ -53,7 +53,9 @@
           buildInputs = [ pkgs.bun ];
           buildPhase = ''
             export HOME=$TMPDIR
-            bun install --no-progress --frozen-lockfile || exit 1
+            bun install --no-progress \
+              --frozen-lockfile \
+              --production || exit 1
             bun build src/index.ts \
               --sourcemap \
               --target=bun \

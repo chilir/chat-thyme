@@ -50,7 +50,7 @@ describe("In-Memory Database Cache", () => {
       expect(userDbCache.evictionInterval).toBeDefined();
 
       // wait for TTL
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       expect(userDbCache.cache.size).toBe(0);
     });
 
@@ -66,7 +66,7 @@ describe("In-Memory Database Cache", () => {
         testDbConnectionCacheTtl,
         testDbConnectionCacheEvictionInterval,
       );
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       expect(userDbCache.cache.size).toBe(1);
     });
   });
@@ -128,7 +128,7 @@ describe("In-Memory Database Cache", () => {
         testDbConnectionCacheTtl,
         testDbConnectionCacheEvictionInterval,
       );
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Entry should still be in cache since its lastAccessed is in the future
       expect(userDbCache.cache.size).toBe(1);
