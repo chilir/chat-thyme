@@ -6,16 +6,16 @@ on:
 jobs:
   test-and-build:
     name: Unit tests and test build
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: "write"
-      contents: "read"
+    # runs-on: ubuntu-latest
+    # permissions:
+    #   id-token: "write"
+    #   contents: "read"
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-        with:
-          determinate: true
+        uses: nixbuild/nix-quick-install-action@v29
+        # with:
+        #   determinate: true
 
       - run: nix flake check
 
