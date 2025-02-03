@@ -30,5 +30,4 @@ jobs:
           context: .
           push: true
           tags: chat-thyme:nightly
-          platforms: linux/amd64,linux/arm64,darwin/amd64,darwin/arm64
-
+          platforms: linux/amd64,linux/arm64
