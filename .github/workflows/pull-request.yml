@@ -18,6 +18,7 @@ jobs:
           nix flake check
           nix flake metadata
           nix develop
+          echo "do i even reach here?"
           which bun
           bun --version
           ls -a
