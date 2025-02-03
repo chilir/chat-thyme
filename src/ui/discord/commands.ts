@@ -58,6 +58,14 @@ export const startChatCommandData = new SlashCommandBuilder()
       .setMinValue(0)
       .setMaxValue(2),
   )
+  .addBooleanOption((option) =>
+    option
+      .setName("strict")
+      .setDescription(
+        "Strict OpenAI SDK compatibility, strip out extra options",
+      )
+      .setRequired(false),
+  )
   .addNumberOption((option) =>
     option
       .setName("temperature")
@@ -158,6 +166,14 @@ export const resumeChatCommandData = new SlashCommandBuilder()
       .setRequired(false)
       .setMinValue(0)
       .setMaxValue(2),
+  )
+  .addBooleanOption((option) =>
+    option
+      .setName("strict")
+      .setDescription(
+        "Strict OpenAI SDK compatibility, strip out extra options",
+      )
+      .setRequired(false),
   )
   .addNumberOption((option) =>
     option
