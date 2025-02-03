@@ -12,7 +12,12 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
       - name: Enter nix shell and run bun tests
-        run: nix develop -c 'bun --env-file=.env.test test'
+        run: |
+          nix develop
+          which bun
+          bun --version
+          ls -a
+          bun --env-file=.env.test test
   build:
     name: Build
     runs-on: ubuntu-22.04
@@ -21,4 +26,4 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
       - name: Run `nix build`
-        run: nix build .
+        run: nix build
