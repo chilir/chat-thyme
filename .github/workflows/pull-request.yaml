@@ -40,8 +40,14 @@ jobs:
     name: Docker build
     strategy:
       matrix:
+        os: [ubuntu-latest, macos-latest]
         platform: [linux/amd64, linux/arm64]
-    runs-on: ubuntu-latest
+        exclude:
+          - os: macos-latest
+            platform: linux/amd64
+          - os: ubuntu-latest
+            platform: linux/arm64
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/metadata-action@v5
