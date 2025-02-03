@@ -33,7 +33,7 @@ import {
   startQueueWorker,
 } from "./utils";
 
-describe("getModelOptions", () => {
+describe("getModelOptions - Model parameter extraction", () => {
   it("should extract provided parameters in strict mode", () => {
     const mockInteraction = {
       options: {
@@ -90,7 +90,7 @@ describe("getModelOptions", () => {
   });
 });
 
-describe("startArchivedThreadEviction", () => {
+describe("startArchivedThreadEviction - Archived thread cleanup", () => {
   let intervalCallback: () => Promise<void>;
   let originalSetInterval: typeof setInterval;
   let activeChatThreads: Map<string, ChatThreadInfo>;
@@ -197,7 +197,7 @@ describe("startArchivedThreadEviction", () => {
   });
 });
 
-describe("createDiscordThread", () => {
+describe("createDiscordThread - Thread creation and initialization", () => {
   let activeChatThreads: Map<string, ChatThreadInfo>;
   const mockEditReply = mock(() => Promise.resolve());
 
@@ -276,7 +276,7 @@ describe("createDiscordThread", () => {
   });
 });
 
-describe("startQueueWorker", () => {
+describe("startQueueWorker - Message queue processing worker", () => {
   let chatMessageQueues: Map<string, ChatMessageQueue>;
   let mockMessage: Message;
   const mockChatThreadInfo: ChatThreadInfo = {
@@ -358,7 +358,7 @@ describe("startQueueWorker", () => {
   });
 });
 
-describe("processMessageFromQueue", () => {
+describe("processMessageFromQueue - Message processing and response handling", () => {
   let mockMessage: Message;
   let mockReply: Mock<() => Promise<void>>;
   const funcArgs = {

@@ -1,6 +1,5 @@
 // src/ui/discord/handlers.ts
 
-import type { Database } from "bun:sqlite";
 import type {
   ChatInputCommandInteraction,
   Message as DiscordMessage,
