@@ -1,8 +1,9 @@
 // src/ui/discord/handlers.ts
 
-import type {
-  ChatInputCommandInteraction,
-  Message as DiscordMessage,
+import {
+  type ChatInputCommandInteraction,
+  type Message as DiscordMessage,
+  MessageFlags,
 } from "discord.js";
 import type Exa from "exa-js";
 import type OpenAI from "openai";
@@ -34,7 +35,7 @@ export const handleStartChatCommand = async (
   discordSlowModeInterval: number,
   activeChatThreads: Map<string, ChatThreadInfo>,
 ) => {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const userDb = await getOrInitUserDb(
     interaction.user.id,
@@ -84,7 +85,7 @@ export const handleResumeChatCommand = async (
   discordSlowModeInterval: number,
   activeChatThreads: Map<string, ChatThreadInfo>,
 ) => {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const userDb = await getOrInitUserDb(
     interaction.user.id,

@@ -11,10 +11,11 @@ import {
   spyOn,
 } from "bun:test";
 import type { Mutex } from "async-mutex";
-import type {
-  ChatInputCommandInteraction,
-  InteractionResponse,
-  Message,
+import {
+  type ChatInputCommandInteraction,
+  type InteractionResponse,
+  type Message,
+  MessageFlags,
 } from "discord.js";
 import type OpenAI from "openai";
 import type { ChatThymeConfig } from "../../config";
@@ -117,7 +118,7 @@ describe("Discord Command and Message Handlers", () => {
 
       expect(getOrInitUserDbSpy).toHaveBeenCalled();
       expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       expect(createDiscordThreadSpy).toHaveBeenCalled();
     });
@@ -172,7 +173,7 @@ describe("Discord Command and Message Handlers", () => {
 
       expect(getOrInitUserDbSpy).toHaveBeenCalled();
       expect(mockInteraction.deferReply).toHaveBeenCalledWith({
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       expect(createDiscordThreadSpy).toHaveBeenCalled();
     });
