@@ -5,17 +5,34 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   build-nightly-image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: chilir
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push
-        run: |
-          docker build . -t ghcr.io/chilir/chat-thyme:nightly
-          docker push ghcr.io/chilir/chat-thyme:nightly
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags:
+            - chat-thyme:nightly
+          platforms:
+            - linux/amd64
+            - linux/arm64
+            - darwin/amd64
+            - darwin/arm64
+
