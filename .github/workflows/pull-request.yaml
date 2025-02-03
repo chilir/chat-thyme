@@ -40,6 +40,7 @@ jobs:
       - name: Docker build Check Docker build entrypoint help menu
         run: docker build . -t ghcr.io/chilir/chat-thyme:${{ github.event.pull_request.head.sha }}
       - name: Check containerized chat-thyme app help menu
+        run: |
           docker run \
             --rm \
             --entrypoint /app/bin/app \
