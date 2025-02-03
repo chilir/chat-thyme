@@ -12,6 +12,8 @@ jobs:
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@master
       - name: Enter nix shell and run bun tests
+        env:
+          ACTIONS_STEP_DEBUG: true
         run: |
           nix flake check
           nix flake metadata
@@ -28,4 +30,6 @@ jobs:
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@master
       - name: Run `nix build`
+        env:
+          ACTIONS_STEP_DEBUG: true
         run: nix build
