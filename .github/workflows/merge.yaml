@@ -1,0 +1,21 @@
+name: "Merge"
+on:
+  push:
+    branches:
+      - main:
+  workflow_dispatch:
+
+jobs:
+  build-nightly-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: chilir
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        run: |
+          docker build . -t ghcr.io/chilir/chat-thyme:nightly
+          docker push ghcr.io/chilir/chat-thyme:nightly

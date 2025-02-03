@@ -31,3 +31,15 @@ jobs:
         uses: biomejs/setup-biome@v2
       - name: Run Biome
         run: biome ci --changed --no-errors-on-unmatched
+
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Docker build entrypoint help menu
+        run: |
+          docker build . -t ghcr.io/chilir/chat-thyme:${{ github.event.pull_request.head.sha }}
+          docker run --rm --entrypoint /app/bin/app \
+            ghcr.io/chilir/chat-thyme:${{ github.event.pull_request.head.sha }} \
+            --help
