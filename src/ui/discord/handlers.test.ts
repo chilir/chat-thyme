@@ -85,6 +85,10 @@ describe("Discord Command and Message Handlers", () => {
     startQueueWorkerSpy = spyOn(DiscordUtils, "startQueueWorker");
     getOrInitUserDbSpy = spyOn(DbModule, "getOrInitUserDb");
     releaseUserDbSpy = spyOn(DbModule, "releaseUserDb");
+
+    startQueueWorkerSpy.mockImplementation(() => {
+      // no-op to avoid starting a real worker
+    });
   });
 
   afterEach(() => {
@@ -213,6 +217,9 @@ describe("Discord Command and Message Handlers", () => {
         content: "test message",
         author: { id: "test-user-id" },
         id: "test-message-id",
+        channel: {
+          isTextBased: () => true, // ensure channel is defined
+        },
       } as Message;
       const mockModelClient = {
         chat: { completions: { create: mock() } },
