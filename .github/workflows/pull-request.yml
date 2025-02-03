@@ -4,7 +4,7 @@ on:
 
 jobs:
   test-and-build:
-    name: Unit tests and test build
+    name: Test/build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,11 +23,11 @@ jobs:
         run: result/bin/app --help
 
   lint-and-format:
-    name: Biome
+    name: Lint/format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Setup Biome
         uses: biomejs/setup-biome@v2
       - name: Run Biome
-        run: biome ci
+        run: biome ci --changed
