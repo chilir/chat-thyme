@@ -1,45 +1,33 @@
-name: "Pull Request"
+name: "Pull request"
 on:
   pull_request:
-  workflow_dispatch:
 
 jobs:
   test-and-build:
     name: Unit tests and test build
     runs-on: ubuntu-latest
-    # permissions:
-    #   id-token: "write"
-    #   contents: "read"
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@v29
-        # with:
-        #   determinate: true
-
-      - run: nix flake check
-
+      - name: Check Nix flake
+        run: nix flake check --all-systems
       - name: Bun tests
         run: |
           nix develop --command bash -c '
             bun install --no-progress --frozen-lockfile
             bun --env-file=.env.test test
           '
-      - run: nix build .
-      - run: result/bin/app --help
-  # build:
-  #   name: Build
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     id-token: "write"
-  #     contents: "read"
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Install Nix
-  #       uses: DeterminateSystems/nix-installer-action@main
-  #       with:
-  #         determinate: true
-  #     - name: Run `nix build`
-  #       run: |
-  #         nix build
-  #         result/bin/app --help
+      - run: nix build
+      - name: Check built chat-thyme app help menu
+        run: result/bin/app --help
+
+  lint-and-format:
+    name: Biome
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Biome
+        uses: biomejs/setup-biome@v2
+      - name: Run Biome
+        run: biome ci
