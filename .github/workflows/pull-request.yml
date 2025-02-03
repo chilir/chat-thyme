@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  unit-test:
-    name: Unit tests
+  test-and-build:
+    name: Unit tests and test build
     runs-on: ubuntu-latest
     permissions:
       id-token: "write"
@@ -16,35 +16,30 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
         with:
           determinate: true
-      - name: Debug nix shell environment
-        run: |
-          nix develop --command bash -c 'echo $PATH && type bun || echo "Bun is not installed"'
 
-      - name: Enter nix shell and run bun tests
-        # shell: /usr/bin/bash -l {0}
-        env:
-          ACTIONS_STEP_DEBUG: 'true'
+      - run: nix flake check
+
+      - name: Bun tests
         run: |
           nix develop --command bash -c '
-            echo $PATH
-            ls $HOME/.nix-profile/bin
-            type bun
             bun install --no-progress --frozen-lockfile
             bun --env-file=.env.test test
           '
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: "write"
-      contents: "read"
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
-        with:
-          determinate: true
-      - name: Run `nix build`
-        run: |
-          nix build
-          result/bin/app --help
+      - run: nix build .
+      - run: result/bin/app --help
+  # build:
+  #   name: Build
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     id-token: "write"
+  #     contents: "read"
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Install Nix
+  #       uses: DeterminateSystems/nix-installer-action@main
+  #       with:
+  #         determinate: true
+  #     - name: Run `nix build`
+  #       run: |
+  #         nix build
+  #         result/bin/app --help
