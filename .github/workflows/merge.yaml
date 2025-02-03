@@ -28,8 +28,7 @@ jobs:
         with:
           context: .
           push: true
-          tags:
-            - chat-thyme:nightly
+          tags: chat-thyme:nightly
           platforms:
             - linux/amd64
             - linux/arm64
