@@ -46,7 +46,7 @@
         default = pkgs.stdenv.mkDerivation rec {
           pname = "chat-thyme";
           version = "0.1.0";
-          name = "${pname}-${version}";
+          name = "app";
 
           src = ./.;
           nativeBuildInputs = [ pkgs.bun pkgs.makeWrapper ];
@@ -55,8 +55,7 @@
             export HOME=$TMPDIR
             bun install --no-progress --frozen-lockfile || exit 1
             bun build src/index.ts \
-              --minify \
-              --sourcemap=linked \
+              --sourcemap \
               --target=bun \
               --outdir=dist || exit 1
           '';
