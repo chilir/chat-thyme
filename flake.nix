@@ -25,7 +25,7 @@
       devShells = forEachSupportedSystem ({ pkgs }: {
         default = pkgs.mkShell {
           # Pinned packages available in the environment
-          buildInputs = with pkgs; [
+          packages = with pkgs; [
             bun
             # curl
             # git
