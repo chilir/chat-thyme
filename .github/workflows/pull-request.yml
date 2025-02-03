@@ -15,11 +15,7 @@ jobs:
         env:
           ACTIONS_STEP_DEBUG: 'true'
         run: |
-          nix flake check
-          nix flake metadata
           nix develop
-          echo "do i even reach here?"
-          which bun
           bun --version
           ls -a
           bun --env-file=.env.test test
