@@ -21,7 +21,7 @@ jobs:
           nix develop --command bash -c 'echo $PATH && type bun || echo "Bun is not installed"'
 
       - name: Enter nix shell and run bun tests
-        shell: /usr/bin/bash -l {0}
+        # shell: /usr/bin/bash -l {0}
         env:
           ACTIONS_STEP_DEBUG: 'true'
         run: |
