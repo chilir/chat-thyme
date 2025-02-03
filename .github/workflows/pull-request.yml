@@ -14,8 +14,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
-          with:
-            determinate: true
+        with:
+          determinate: true
       - name: Enter nix shell and run bun tests
         shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
         env:
@@ -36,8 +36,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
-          with:
-            determinate: true
+        with:
+          determinate: true
       - name: Run `nix build`
         run: |
           nix build
