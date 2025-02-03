@@ -16,7 +16,9 @@ jobs:
           ACTIONS_STEP_DEBUG: 'true'
         run: |
           nix develop
-          bun --env-file=.env.test test
+          echo $PATH
+          ls -a
+          /nix/store/738z8xcfqmxd60dc74n02bmc8awa0mrg-bun-1.2.0/bin/bun --env-file=.env.test test
   build:
     name: Build
     runs-on: ubuntu-latest
