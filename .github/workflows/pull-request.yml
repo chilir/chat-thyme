@@ -26,6 +26,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix
-        uses: nixbuild/nix-quick-install-action@main
+        uses: nixbuild/nix-quick-install-action@master
       - name: Run `nix build`
         run: nix build
