@@ -16,8 +16,6 @@ jobs:
           ACTIONS_STEP_DEBUG: 'true'
         run: |
           nix develop
-          bun --version
-          ls -a
           bun --env-file=.env.test test
   build:
     name: Build
