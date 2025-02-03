@@ -7,10 +7,15 @@ jobs:
   unit-test:
     name: Unit tests
     runs-on: ubuntu-latest
+    permissions:
+      id-token: "write"
+      contents: "read"
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix
-        uses: nixbuild/nix-quick-install-action@master
+        uses: DeterminateSystems/nix-installer-action@main
+          with:
+            determinate: true
       - name: Enter nix shell and run bun tests
         shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
         env:
@@ -24,10 +29,15 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      id-token: "write"
+      contents: "read"
     steps:
       - uses: actions/checkout@v4
       - name: Install Nix
-        uses: nixbuild/nix-quick-install-action@master
+        uses: DeterminateSystems/nix-installer-action@main
+          with:
+            determinate: true
       - name: Run `nix build`
         run: |
           nix build
