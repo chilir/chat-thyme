@@ -3,7 +3,7 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import tmp from "tmp";
-import type { DbCache, DbCacheEntry } from "../interfaces";
+import type { DbCache, DbCacheEntry, DbChatMessageToSave } from "../interfaces";
 import { clearUserDbCache, initUserDbCache } from "./cache";
 import { getOrInitUserDb, releaseUserDb } from "./sqlite";
 
@@ -221,6 +221,62 @@ describe("SQLite Database Operations", () => {
           )
           .run(null, "user", "test", null),
       ).toThrow();
+    });
+  });
+
+  describe("tool_calls column tests", () => {
+    it("should allow insertion and retrieval of tool_calls data", async () => {
+      const db = await getOrInitUserDb(
+        userId,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize,
+      );
+
+      db.prepare(
+        "INSERT INTO chat_messages (chat_id, role, content, timestamp, tool_calls) VALUES (?, ?, ?, ?, ?)",
+      ).run(
+        "test_chat",
+        "system",
+        "test content",
+        new Date().toISOString(),
+        '{"foo":"bar"}',
+      );
+
+      const row = db
+        .prepare("SELECT tool_calls FROM chat_messages WHERE chat_id = ?")
+        .get("test_chat") as DbChatMessageToSave;
+
+      expect(row.tool_calls).toContain('"foo":"bar"');
+    });
+
+    it("should allow insertion and retrieval of an array of tool_calls when role=assistant", async () => {
+      const db = await getOrInitUserDb(
+        userId,
+        userDbCache,
+        tmpDir.name,
+        testDbConnectionCacheSize
+      );
+
+      const toolCalls = [
+        { id: "call01", function: { name: "testFunction" }, type: "function" }
+      ];
+      db.prepare(
+        "INSERT INTO chat_messages (chat_id, role, content, timestamp, tool_calls) VALUES (?, ?, ?, ?, ?)"
+      ).run(
+        "test_chat_array",
+        "assistant",
+        "assistant content",
+        new Date().toISOString(),
+        JSON.stringify(toolCalls)
+      );
+
+      const row = db
+        .prepare("SELECT role, tool_calls FROM chat_messages WHERE chat_id = ?")
+        .get("test_chat_array") as DbChatMessageToSave;
+
+      expect(row.role).toBe("assistant");
+      expect(Array.isArray(JSON.parse(row.tool_calls as string))).toBe(true);
     });
   });
 });

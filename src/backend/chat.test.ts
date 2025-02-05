@@ -45,6 +45,7 @@ describe("Chat System Integration", () => {
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       tool_call_id TEXT,
+      tool_calls TEXT,
       timestamp DATETIME NOT NULL
     )`);
     mockModelClient = {} as OpenAI;

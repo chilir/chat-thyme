@@ -11,12 +11,14 @@ import type {
 /**
  * Converts a database message row into an OpenAI compatible chat completion
  * message.
- * Handles special parsing for tool messages by converting their content from
- * stringified JSON stored in the DB to an array of content parts.
+ * Handles special parsing for assistant and tool messages by converting any
+ * stringified JSON stored in the DB to parsed objects.
  *
  * @param {DbChatMessageToSave} row - Database row containing message data
  * @returns {OpenAI.ChatCompletionMessageParam} Formatted message
  * @throws When tool message content contains invalid JSON that cannot be parsed
+ * @throws When assistant message tool calls contain invalid JSON that cannot be
+ *   parsed
  */
 export const parseDbRow = (
   row: DbChatMessageToSave,
@@ -28,8 +30,6 @@ export const parseDbRow = (
       content = JSON.parse(
         row.content as string,
       ) as OpenAI.ChatCompletionContentPart[];
-      console.debug("checking content parsing??");
-      console.debug(content);
     } catch (error) {
       console.error(
         `Error parsing tool call (id: ${row.tool_call_id}) content from \
@@ -44,6 +44,28 @@ database. Raw JSON string: ${row.content}:`,
       content: content,
       tool_call_id: row.tool_call_id,
     } as OpenAI.ChatCompletionToolMessageParam;
+  }
+
+  if (row.role === "assistant" && row.tool_calls) {
+    let toolCalls: OpenAI.ChatCompletionMessageToolCall[];
+    try {
+      toolCalls = JSON.parse(
+        row.tool_calls as string,
+      ) as OpenAI.ChatCompletionMessageToolCall[];
+    } catch (error) {
+      console.error(
+        `Error parsing tool calls from database. Raw JSON string: \
+${row.tool_calls}:`,
+        error,
+      );
+      throw error;
+    }
+
+    return {
+      role: "assistant",
+      content: row.content,
+      tool_calls: toolCalls,
+    } as OpenAI.ChatCompletionAssistantMessageParam;
   }
 
   return {
@@ -195,6 +217,9 @@ export const formatModelResponse = (
  * @param {Date} timestamp - Message timestamp
  * @param {string | null} [toolCallId] - Tool call ID if the message is a tool
  *   call result, `null` otherwise
+ * @param {string | OpenAI.ChatCompletionMessageToolCall[] | null} [toolCalls] -
+ *   Array of tool calls if the message is an assistant message with tool calls,
+ *   `null` otherwise
  * @returns {Promise<void>} Resolves when the message is saved
  */
 export const saveChatMessageToDb = async (
@@ -205,14 +230,25 @@ export const saveChatMessageToDb = async (
   content: string | OpenAI.ChatCompletionContentPart[],
   timestamp: Date,
   toolCallId: string | null = null,
+  toolCalls: string | OpenAI.ChatCompletionMessageToolCall[] | null = null,
 ): Promise<void> => {
   const chatContent = Array.isArray(content)
     ? JSON.stringify(content)
     : content;
+  const chatToolCalls = Array.isArray(toolCalls)
+    ? JSON.stringify(toolCalls)
+    : toolCalls;
   try {
     userDb.run(
-      "INSERT INTO chat_messages (chat_id, role, content, tool_call_id, timestamp) VALUES (?, ?, ?, ?, ?)",
-      [chatId, role, chatContent, toolCallId, timestamp.toISOString()],
+      "INSERT INTO chat_messages (chat_id, role, content, tool_call_id, tool_calls, timestamp) VALUES (?, ?, ?, ?,?, ?)",
+      [
+        chatId,
+        role,
+        chatContent,
+        toolCallId,
+        chatToolCalls,
+        timestamp.toISOString(),
+      ],
     );
   } catch (error) {
     console.error(

@@ -79,6 +79,7 @@ Initializing new database object from ${dbPath}.`,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
         tool_call_id TEXT,
+        tool_calls TEXT,
         timestamp DATETIME NOT NULL
       )
     `);

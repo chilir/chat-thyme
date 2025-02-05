@@ -157,6 +157,7 @@ describe("Database Message Operations", () => {
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       tool_call_id TEXT,
+      tool_calls TEXT,
       timestamp DATETIME NOT NULL
     )`);
   });
@@ -238,6 +239,24 @@ describe("Database Message Operations", () => {
       .query("SELECT * FROM chat_messages WHERE chat_id = ?")
       .get("chat456") as { content: string };
     expect(result.content.length).toBe(longContent.length);
+  });
+
+  it("should parse tool_calls array for assistant messages", async () => {
+    const row: DbChatMessageToSave = {
+      role: "assistant",
+      content: "Test content",
+      timestamp: new Date(),
+      tool_calls:
+        '[{"id":"call01","function":{"name":"testFunction"},"type":"function"}]',
+    };
+
+    const parsed = parseDbRow(
+      row,
+    ) as OpenAI.ChatCompletionAssistantMessageParam;
+    expect(parsed.role).toBe("assistant");
+    expect(Array.isArray(parsed.tool_calls)).toBe(true);
+    // @ts-ignore
+    expect(parsed.tool_calls[0].id).toBe("call01");
   });
 });
 
