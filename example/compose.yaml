@@ -1,6 +1,6 @@
 services:
   app:
-    image: chat-thyme:test-debug
+    image: ghcr.io/chilir/chat-thyme:nightly
     entrypoint: [ "/app/bin/app" ]
     command: [ "-c", "/app/config.yaml" ]
     env_file:
