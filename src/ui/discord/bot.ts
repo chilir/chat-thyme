@@ -28,16 +28,20 @@ export const setupDiscordBot = (
     console.info(`Logged in as ${clients.discordClient.user?.tag}!`);
     try {
       for (const guild of clients.discordClient.guilds.cache.values()) {
+        const existingCommands = await guild.commands.fetch();
+        for (const command of existingCommands.values()) {
+          if (command.name !== "start-chat" && command.name !== "resume-chat") {
+            console.debug(`Deleting extraneous command: ${command.name}`);
+            await command.delete();
+          }
+        }
         console.debug(
-          `Deleting existing commands for guild ${guild.name} (${guild.id})...`,
-        );
-        await guild.commands.set([]);
-        console.debug(
-          `Creating start-chat command for guild ${guild.name} (${guild.id})...`,
+          `Updating start-chat command for guild ${guild.name} \
+(${guild.id})...`,
         );
         await guild.commands.create(startChatCommandData);
         console.debug(
-          `Creating resume-chat command for guild ${guild.name} \
+          `Updating resume-chat command for guild ${guild.name} \
 (${guild.id})...`,
         );
         await guild.commands.create(resumeChatCommandData);

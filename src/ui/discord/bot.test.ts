@@ -42,6 +42,7 @@ describe("Discord Bot", () => {
       commands: {
         set: mock(() => Promise.resolve()),
         create: mock(() => Promise.resolve()),
+        fetch: mock(() => Promise.resolve([])),
         guild: mockGuild,
       } as unknown as GuildApplicationCommandManager,
     } as Guild;
@@ -112,8 +113,8 @@ describe("Discord Bot", () => {
 
     await readyHandler();
 
-    expect(mockGuild.commands?.set).toHaveBeenCalledWith([]);
-    expect(mockGuild.commands?.create).toHaveBeenCalledTimes(2);
+    expect(mockGuild.commands.fetch).toHaveBeenCalled();
+    expect(mockGuild.commands.create).toHaveBeenCalledTimes(2);
   }, 6000);
 
   it("should handle start-chat command interactions", async () => {
