@@ -6,7 +6,7 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - ../.env:/app/.env:ro
-      - ./.sqlite:/app/sqlite:rw
+      - ./.example_output:/app/sqlite:rw
 
     # if you're hosting the model service on the same machine:
     # network_mode: host  # linux only
