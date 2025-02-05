@@ -27,6 +27,7 @@ export interface DbChatMessageToSave {
   role: "user" | "assistant" | "tool";
   content: string | OpenAI.ChatCompletionContentPart[];
   tool_call_id?: string;
+  tool_calls?: string | OpenAI.ChatCompletionMessageToolCall[];
   timestamp: Date;
 }
 
