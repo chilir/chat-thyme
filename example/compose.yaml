@@ -1,14 +1,14 @@
 services:
   app:
-    image: chat-thyme:test
+    image: chat-thyme:test-debug
     entrypoint: [ "/app/bin/app" ]
     command: [ "-c", "/app/config.yaml" ]
+    env_file:
+      - ../.env
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      - ../.env:/app/.env:ro
       - ./.example_output:/app/sqlite:rw
 
     # if you're hosting the model service on the same machine:
-    # network_mode: host  # linux only
     extra_hosts:
-      - "host.docker.internal:host-gateway" # mac and windows
+      - "host.docker.internal:host-gateway"
