@@ -58,6 +58,12 @@ export const startChatCommandData = new SlashCommandBuilder()
       .setMinValue(0)
       .setMaxValue(2),
   )
+  .addIntegerOption((option) =>
+    option
+      .setName("seed")
+      .setDescription("Sets the seed for determinism")
+      .setRequired(false),
+  )
   .addBooleanOption((option) =>
     option
       .setName("strict")
@@ -166,6 +172,12 @@ export const resumeChatCommandData = new SlashCommandBuilder()
       .setRequired(false)
       .setMinValue(0)
       .setMaxValue(2),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName("seed")
+      .setDescription("Sets the seed for determinism")
+      .setRequired(false),
   )
   .addBooleanOption((option) =>
     option

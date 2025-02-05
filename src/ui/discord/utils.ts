@@ -103,6 +103,7 @@ export const getModelOptions = (
     "repeat_penalty",
     interaction.options.getNumber("repeat_penalty"),
   );
+  addIfProvided("seed", interaction.options.getInteger("seed"));
   addIfProvided("temperature", interaction.options.getNumber("temperature"));
   addIfProvided("top_p", interaction.options.getNumber("top_p"));
 
