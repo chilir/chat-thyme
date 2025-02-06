@@ -27,6 +27,7 @@ jobs:
       with:
         ref: ${{ inputs.commit }}
         fetch-tags: true
+        ssh-key: ${{ secrets.DEPLOY_KEY }}
 
     - name: Bump version
       id: version
@@ -34,18 +35,17 @@ jobs:
       with:
         incrementLevel: patch
         source: tags
-        prefix: v
 
     - name: Create tag
       run: |
-        git tag ${{ steps.version.outputs.nextVersion }}
-        git push origin ${{ steps.version.outputs.nextVersion }}
+        git tag v${{ steps.version.outputs.nextVersion }}
+        git push origin v${{ steps.version.outputs.nextVersion }}
 
     - name: Create new release
       uses: softprops/action-gh-release@v2
       with:
-        name: ${{ steps.version.outputs.nextVersion }}
-        tag_name: ${{ steps.version.outputs.nextVersion }}
+        name: v${{ steps.version.outputs.nextVersion }}
+        tag_name: v${{ steps.version.outputs.nextVersion }}
         target_commitish: ${{ inputs.commit }}
         generate_release_notes: true
         make_latest: true
