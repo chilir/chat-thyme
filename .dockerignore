@@ -8,9 +8,6 @@ result
 .idea
 .vscode
 dist
-coverage*
-Makefile
-helm-charts
 .dockerignore
 compose*
 docker-compose*
@@ -20,5 +17,4 @@ docker-compose*
 biome.json
 Dockerfile*
 README.md
-LICENSE
 tsconfig.json
