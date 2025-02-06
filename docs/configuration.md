@@ -1,0 +1,3 @@
+# chat-thyme Configuration
+
+## 🚧 WIP! 🚧

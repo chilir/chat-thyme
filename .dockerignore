@@ -18,3 +18,5 @@ biome.json
 Dockerfile*
 README.md
 tsconfig.json
+img
+docs

@@ -5,11 +5,14 @@ on:
       - main
     paths-ignore:
       - .github/**
+      - docs/**
       - example/**
+      - img/**
       - .env.test
       - .envrc
       - .gitignore
       - biome.json
+      - CONTRIBUTING.md
       - README.md
       - tsconfig.json
 
