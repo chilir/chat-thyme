@@ -18,7 +18,10 @@ jobs:
       - name: Install Nix
         uses: nixbuild/nix-quick-install-action@v29
       - name: Check Nix flake # TODO: try determinate flake checker
-        run: nix flake check --all-systems
+        uses: DeterminateSystems/flake-checker-action@v9
+        with:
+          fail-mode: true
+        # run: nix flake check --all-systems
       - name: Bun tests
         run: |
           nix develop --command bash -c '
