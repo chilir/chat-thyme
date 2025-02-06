@@ -4,8 +4,8 @@ on:
     branches:
       - main
     paths-ignore:
-      - .github/*
-      - example/*
+      - .github/**
+      - example/**
       - .env.test
       - .envrc
       - .gitignore
