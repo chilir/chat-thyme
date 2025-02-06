@@ -1,0 +1,43 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: The commit from the main branch to release
+        type: string
+        required: true
+      increment:
+        description: Version increment type
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create release
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.commit }}
+        fetch-tags: true
+
+    - name: Bump version
+      id: version
+      uses: flatherskevin/semver-action@v1
+      with:
+        incrementLevel: patch
+        source: tags
+
+    - name: Create new release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: ${{ steps.version.outputs.nextVersion }}
+        tag_name: ${{ steps.version.outputs.nextVersion }}
+        target_commitish: ${{ inputs.commit }}
+        generate_release_notes: true
+        make_latest: true
