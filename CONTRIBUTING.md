@@ -6,6 +6,8 @@ Feature development is also highly welcomed! Unfortunately (for the project, for
 
 Easiest way to set up a development environment is to have Nix and direnv installed. From there, you can clone the repo and run `bun install`. Otherwise, minimally you would need Bun and sqlite.
 
+Assuming the `.env` and `config.yaml` files are properly setup, the bot can be started with `bun run src/index.ts`
+
 Unit tests can be run with `bun --env-file=.env.test test`
 
 Biome is used for linting and formatting, would highly recommend installing the official extension/plugin for your IDE. It is available in the Nix development shell as well if you prefer using the CLI instead.
