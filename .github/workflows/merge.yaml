@@ -23,6 +23,7 @@ env:
 
 jobs:
   build-nightly-image:
+    name: Build nightly image
     runs-on: ubuntu-latest
     permissions:
       contents: read
