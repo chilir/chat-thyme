@@ -12,6 +12,8 @@ on:
 
 env:
   NEW_TAG: ${{ (inputs.tag != null) && inputs.tag || github.ref_name }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   flakehub-publish:
