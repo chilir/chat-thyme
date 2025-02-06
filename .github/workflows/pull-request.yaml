@@ -38,7 +38,7 @@ jobs:
         run: result/bin/app --help
 
       - name: Check Nix run default command help menu
-        run: nix run .# -- --help
+        run: nix run . -- --help
 
       - name: Check Nix run chat-thyme command help menu
         run: nix run .#chat-thyme -- --help
