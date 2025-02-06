@@ -33,6 +33,7 @@
             wget
             nixpkgs-fmt
             sqlite
+            biome
           ];
 
           # A hook run every time you enter the environment
