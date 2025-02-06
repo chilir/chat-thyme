@@ -1,4 +1,4 @@
-name: "Publish tags to FlakeHub"
+name: "Deploy"
 on:
   push:
     tags:
@@ -19,6 +19,7 @@ jobs:
       - uses: "actions/checkout@v4"
         with:
           ref: "${{ (inputs.tag != null) && format('refs/tags/{0}', inputs.tag) || '' }}"
+
       - uses: "nixbuild/nix-quick-install-action@v29"
       - uses: "DeterminateSystems/flakehub-push@v5"
         with:
