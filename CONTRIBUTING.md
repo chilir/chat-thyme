@@ -1,6 +1,7 @@
 # Contributing
 
-WIP! The highest need right now is expanding the documentation! The next highest need is to thoroughly use the app and break it in ways I haven't yet 🥹.
+## 🚧 WIP! 🚧
+The highest need right now is expanding the documentation! The next highest need is to thoroughly use the app and break it in ways I haven't yet 🥹.
 
 Feature development is also highly welcomed! Unfortunately (for the project, fortunately for me) I am currently employed full-time so my response time may be delayed. But all contributions are welcomed and appreciated! If you decide to make a contribution (thank you in advance!), I will make every effort to find time to review the change.
 
