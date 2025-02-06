@@ -11,6 +11,7 @@ on:
         required: true
 jobs:
   flakehub-publish:
+    name: Publish to FlakeHub
     runs-on: "ubuntu-latest"
     permissions:
       id-token: "write"
