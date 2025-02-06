@@ -18,6 +18,9 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}
+
 jobs:
   create-release:
     name: Create release
