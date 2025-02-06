@@ -34,6 +34,12 @@ jobs:
       with:
         incrementLevel: patch
         source: tags
+        prefix: v
+
+    - name: Create tag
+      run: |
+        git tag ${{ steps.version.outputs.nextVersion }}
+        git push origin ${{ steps.version.outputs.nextVersion }}
 
     - name: Create new release
       uses: softprops/action-gh-release@v2
