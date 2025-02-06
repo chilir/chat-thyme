@@ -1,33 +1,85 @@
-name: "Deploy"
+name: Deploy
 on:
   push:
     tags:
-      - "v?[0-9]+.[0-9]+.[0-9]+*"
+      - v?[0-9]+.[0-9]+.[0-9]+*
   workflow_dispatch:
     inputs:
       tag:
-        description: "The existing tag to publish to FlakeHub"
-        type: "string"
+        description: The existing tag to deploy
+        type: string
         required: true
+
+env:
+  NEW_TAG: ${{ (inputs.tag != null) && inputs.tag || github.ref_name }}
+
 jobs:
   flakehub-publish:
     name: Publish to FlakeHub
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest
     permissions:
-      id-token: "write"
-      contents: "read"
+      id-token: write
+      contents: read
     steps:
-      - uses: "actions/checkout@v4"
+      - uses: actions/checkout@v4
         with:
-          ref: "${{ (inputs.tag != null) && format('refs/tags/{0}', inputs.tag) || '' }}"
+          ref: ${{ env.NEW_TAG }}
 
       - name: Install Nix
-        uses: "nixbuild/nix-quick-install-action@v29"
+        uses: nixbuild/nix-quick-install-action@v29
 
       - name: Push to FlakeHub
-        uses: "DeterminateSystems/flakehub-push@v5"
+        uses: DeterminateSystems/flakehub-push@v5
         with:
-          visibility: "public"
-          name: "chilir/chat-thyme"
-          tag: "${{ inputs.tag }}"
+          visibility: public
+          name: chilir/chat-thyme
+          tag: ${{ inputs.tag }}
           include-output-paths: true
+
+  build-versioned-image:
+    name: Build versioned image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.NEW_TAG }}
+
+      - name: Log into Github Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Docker metadata
+        uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Set up Docker build system
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image with version and latest tag
+        uses: docker/build-push-action@v6
+        id: push
+        with:
+          context: .
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}:latest,${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}:${{ env.NEW_TAG }}
+          platforms: linux/amd64,linux/arm64
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Attest versioned Docker build
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
