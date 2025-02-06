@@ -44,9 +44,9 @@
 
       packages = forEachSupportedSystem ({ pkgs }: {
         default = pkgs.stdenv.mkDerivation rec {
-          pname = "chat-thyme";
+          pname = "app";
           version = "0.1.0";
-          name = "app";
+          name = "chat-thyme";
 
           src = ./.;
           nativeBuildInputs = [ pkgs.bun pkgs.makeWrapper ];
@@ -65,10 +65,12 @@
           installPhase = ''
             mkdir -p $out/{lib,bin}
             cp dist/* $out/lib/
-            makeWrapper ${pkgs.bun}/bin/bun $out/bin/${name} \
+            makeWrapper ${pkgs.bun}/bin/bun $out/bin/${pname} \
               --add-flags "$out/lib/index.js"
           '';
         };
+
+        chat-thyme = self.packages.${pkgs.system}.default;
       });
     };
 }
