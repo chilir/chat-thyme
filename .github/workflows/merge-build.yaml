@@ -1,9 +1,13 @@
-name: "Merge"
+name: "Build on merge"
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
