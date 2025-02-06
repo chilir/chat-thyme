@@ -1,13 +1,16 @@
+# example/compose.yaml
+
+# run with `docker compose -f example/compose.yaml up` from repo root
+
 services:
   app:
     image: ghcr.io/chilir/chat-thyme:nightly
-    entrypoint: [ "/app/bin/app" ]
     command: [ "-c", "/app/config.yaml" ]
     env_file:
       - ../.env
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      - ./.example_output:/app/sqlite:rw
+      - ./.example_output:/app/.sqlite:rw
 
     # if you're hosting the model service on the same machine:
     extra_hosts:

@@ -19,3 +19,5 @@ COPY --from=builder /tmp/build/result /app
 
 # so version arg works properly
 COPY --from=builder /tmp/build/package.json /app
+
+ENTRYPOINT ["/app/bin/app"]

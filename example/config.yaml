@@ -1,7 +1,8 @@
+# example/config.yaml
+
 ---
 model: hermes3:8b-llama3.1-q6_K
 useTools: true
-dbDir: /app/sqlite
 serverUrl: http://host.docker.internal:11434/v1/
 systemPrompt: >
   You are a helpful assistant with have access to an advanced search engine. Please provide the
